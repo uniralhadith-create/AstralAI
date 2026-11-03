@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Message row (V5 System-Adaptive iOS 27 Liquid Glass Chat)
+// MARK: - Message row (V5 Liquid Glass Chat)
 
 /// Dispatches a single conversation message to the right presentation
 /// (user bubble, assistant text, tool chip) by its role. System messages
@@ -35,7 +35,7 @@ struct MessageRow: View {
     }
 }
 
-// MARK: - Screenshot card (V5 System-Adaptive Liquid Glass)
+// MARK: - Screenshot card (V5 Liquid Glass)
 
 /// A screenshot the agent captured for the user — the page it is on,
 /// delivered as an image card. Glass frame, camera caption bar, and a
@@ -55,7 +55,9 @@ struct ScreenshotCard: View {
                     strokeWidth: 2.1,
                     color: AstralTheme.orbGreen)
                     .frame(width: 26, height: 26)
-                    .liquidGlass(in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(AstralTheme.surfaceSecondary))
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(L("chat.screenshot.title", "Chat"))
@@ -143,7 +145,7 @@ struct ScreenshotViewer: View {
                                 AstralIcons.share,
                                 size: 16,
                                 strokeWidth: 2.2,
-                                color: AstralTheme.textPrimary)
+                                color: .white)
                                 .frame(width: 40, height: 40)
                                 .liquidGlass(in: Circle(), interactive: true)
                                 .contentShape(Circle())
@@ -206,11 +208,11 @@ private struct MagnificationImage: View {
     }
 }
 
-// MARK: - User bubble (V5 System-Adaptive iOS 27 Liquid Glass Bubble)
+// MARK: - User bubble (V5 iOS 27 Liquid Glass Bubble)
 
 /// Trailing-aligned iOS 27 Liquid Glass bubble for user messages:
-/// pure native `.liquidGlass` surface, image thumbnails and file chips
-/// stacked cleanly above the text.
+/// refractive glass surface with specular top rim, subtle elevation,
+/// image thumbnails and file chips stacked cleanly above the text.
 struct UserBubble: View {
     let text: String
     let images: [MessageImage]
@@ -246,6 +248,7 @@ struct UserBubble: View {
             .frame(maxWidth: 324, alignment: .trailing)
             .liquidGlass(
                 in: RoundedRectangle(cornerRadius: 22, style: .continuous),
+                tint: AstralTheme.userBubbleFill.opacity(0.65),
                 interactive: false)
         }
         .textSelection(.enabled)
@@ -268,7 +271,7 @@ struct UserBubble: View {
                 .foregroundStyle(AstralTheme.textPrimary.opacity(0.85))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .liquidCapsule()
+                .liquidCapsule(tint: AstralTheme.actionFill.opacity(0.08))
             }
         }
     }
@@ -311,14 +314,14 @@ private struct BubbleImage: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(AstralTheme.separator, lineWidth: 0.8))
+                .stroke(Color.white.opacity(0.18), lineWidth: 0.8))
         .task {
             ui = MediaStore.uiImage(image, thumbnailMax: 320)
         }
     }
 }
 
-// MARK: - Assistant message (V5 System-Adaptive Liquid Glass Header + Copy Action)
+// MARK: - Assistant message (V5 Liquid Glass Header + Copy Action)
 
 /// Full-width assistant reply rendered in V5 Markdown with an author header
 /// badge and one-tap copy button. Empty content renders nothing.
@@ -332,8 +335,11 @@ struct AssistantCard: View {
                 HStack(spacing: 8) {
                     ZStack {
                         Circle()
+                            .fill(AstralTheme.actionFill.opacity(0.08))
                             .frame(width: 24, height: 24)
-                            .liquidGlass(in: Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.20), lineWidth: 0.7))
                         Image("AstralMark")
                             .resizable()
                             .interpolation(.high)
@@ -367,12 +373,14 @@ struct AssistantCard: View {
                                     .font(AstralTheme.mono(10).weight(.semibold))
                                     .foregroundStyle(AstralTheme.success)
                             } else {
-                                AIcon(AstralIcons.copy, size: 11.5, strokeWidth: 2.1, color: AstralTheme.textSecondary)
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(AstralTheme.textSecondary.opacity(0.75))
                             }
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .liquidCapsule(interactive: true)
+                        .liquidCapsule(tint: AstralTheme.actionFill.opacity(0.05))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Text(L("common.copy", "Shared")))
@@ -411,7 +419,9 @@ struct ToolChip: View {
                         strokeWidth: 2.2,
                         color: AstralTheme.textSecondary)
                         .frame(width: 24, height: 24)
-                        .liquidGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(AstralTheme.surfaceSecondary))
 
                     Text(message.name ?? L("chat.tool", "Chat"))
                         .font(AstralTheme.mono(12))
@@ -446,7 +456,7 @@ struct ToolChip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous), interactive: true)
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .animation(.smooth(duration: 0.25), value: expanded)
     }
 }
@@ -471,7 +481,7 @@ struct StreamingCard: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .liquidCapsule()
+                .liquidCapsule(tint: AstralTheme.actionFill.opacity(0.06))
                 .padding(.vertical, 4)
             } else {
                 MarkdownView(text)

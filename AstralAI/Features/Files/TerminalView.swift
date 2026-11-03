@@ -1,10 +1,10 @@
 import SwiftUI
 
-// MARK: - Terminal card (chat — System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Terminal card (chat)
 
-/// System-adaptive iOS 27 Liquid Glass terminal card for `exec` tool results:
-/// shows the command line and its output inside a native `.liquidGlass` surface.
-/// Collapsed by default, expands on tap.
+/// Claude-Code-style terminal card for `exec` tool results: a dark
+/// terminal pane showing the command line and its output. Collapsed by
+/// default (first 3 lines), expands on tap.
 struct TerminalCard: View {
     let message: ChatMessage
 
@@ -15,7 +15,7 @@ struct TerminalCard: View {
             header
 
             Divider()
-                .overlay(AstralTheme.separator)
+                .overlay(Color.white.opacity(0.08))
 
             VStack(alignment: .leading, spacing: 6) {
                 // Command line
@@ -25,7 +25,7 @@ struct TerminalCard: View {
                         .foregroundStyle(AstralTheme.orbGreen)
                     Text(commandLine)
                         .font(AstralTheme.mono(12).weight(.medium))
-                        .foregroundStyle(AstralTheme.textPrimary)
+                        .foregroundStyle(Color.white.opacity(0.95))
                         .textSelection(.enabled)
                         .lineLimit(expanded ? nil : 2)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -35,7 +35,7 @@ struct TerminalCard: View {
                 if !outputText.isEmpty {
                     Text(outputText)
                         .font(AstralTheme.mono(11.5))
-                        .foregroundStyle(AstralTheme.textSecondary)
+                        .foregroundStyle(Color.white.opacity(0.62))
                         .textSelection(.enabled)
                         .lineLimit(expanded ? nil : 4)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -43,8 +43,21 @@ struct TerminalCard: View {
             }
             .padding(12)
         }
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 15, style: .continuous), interactive: true)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.075, green: 0.078, blue: 0.094),
+                            Color(red: 0.055, green: 0.058, blue: 0.072),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.09), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
         .onTapGesture {
             withAnimation(.smooth(duration: 0.22)) { expanded.toggle() }
         }
@@ -52,19 +65,19 @@ struct TerminalCard: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            AIcon(
-                AstralIcons.computer,
+            AstralComputerIcon(
                 size: 13,
-                strokeWidth: 2.0,
-                color: AstralTheme.textSecondary)
+                color: Color.white.opacity(0.65),
+                accentColor: AstralTheme.orbGreen,
+                isActive: true)
 
             Text("astra-os 5.0")
                 .font(AstralTheme.mono(10.5).weight(.semibold))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.60))
 
             Text("· exec")
                 .font(AstralTheme.mono(10.5))
-                .foregroundStyle(AstralTheme.moonDust)
+                .foregroundStyle(Color.white.opacity(0.38))
                 .lineLimit(1)
 
             Spacer(minLength: 6)
@@ -73,11 +86,10 @@ struct TerminalCard: View {
                 ? L("sandbox.collapse", "Files")
                 : L("sandbox.expand", "Files"))
                 .font(AstralTheme.mono(10).weight(.semibold))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.45))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(AstralTheme.actionFill.opacity(0.04))
     }
 
     private var commandLine: String {
@@ -93,10 +105,9 @@ struct TerminalCard: View {
     }
 }
 
-// MARK: - Live terminal (Agent activity + Shell — V5.0.0 System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Live terminal (Agent activity + Shell — V5.0.0)
 
-/// The user's window into the astra-os 5.0 machine, rendered in 100%
-/// system-adaptive iOS 27 Liquid Glass with three tabs:
+/// The user's window into the astra-os 5.0 machine, with two/three tabs:
 /// - **Agent** — the live feed of everything the AI is doing right now.
 /// - **Shell** — a real, tappable Linux terminal over `/home/astral`.
 /// - **Cloud** — dedicated E2B Ubuntu Linux console when configured.
@@ -152,7 +163,7 @@ struct TerminalView: View {
                     cloudInputBar
                 }
             }
-            .background(AstralTheme.background.ignoresSafeArea())
+            .background(Color(red: 0.045, green: 0.048, blue: 0.06))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -162,11 +173,11 @@ struct TerminalView: View {
                 }
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 8) {
-                        AIcon(
-                            AstralIcons.computer,
-                            size: 16,
-                            strokeWidth: 2.0,
-                            color: AstralTheme.textPrimary)
+                        AstralComputerIcon(
+                            size: 17,
+                            color: AstralTheme.textPrimary,
+                            accentColor: AstralTheme.orbGreen,
+                            isActive: true)
                         Text(L("computer.barTitle", "Chat"))
                             .font(AstralTheme.headline(16))
                             .foregroundStyle(AstralTheme.textPrimary)
@@ -191,14 +202,13 @@ struct TerminalView: View {
                             size: 16,
                             strokeWidth: 2,
                             color: AstralTheme.textSecondary)
-                            .frame(width: 34, height: 34)
-                            .liquidGlass(in: Circle(), interactive: true)
                     }
                     .accessibilityLabel(Text(L("sandbox.clear", "Files")))
                 }
             }
         }
         .environment(\.layoutDirection, language.layoutDirection)
+        .preferredColorScheme(.dark)
         .onChange(of: tab) { _, newValue in
             if newValue == .shell { focused = true }
             if newValue == .cloud { cloudFocused = true }
@@ -234,7 +244,11 @@ struct TerminalView: View {
             }
         }
         .padding(4)
-        .liquidCapsule(interactive: true)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1)))
         .padding(.horizontal, 14)
         .padding(.top, 10)
         .padding(.bottom, 6)
@@ -247,8 +261,7 @@ struct TerminalView: View {
     }
 
     private func tabButton(id: Tab, icon: String, label: String) -> some View {
-        let isSelected = tab == id
-        return Button {
+        Button {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { tab = id }
         } label: {
             HStack(spacing: 6) {
@@ -256,19 +269,19 @@ struct TerminalView: View {
                     icon,
                     size: 12,
                     strokeWidth: 2.2,
-                    color: isSelected ? AstralTheme.actionForeground : AstralTheme.textSecondary)
+                    color: tab == id ? Color.black.opacity(0.85) : Color.white.opacity(0.6))
                 Text(label)
                     .font(AstralTheme.headline(12.5))
                     .lineLimit(1)
             }
-            .foregroundStyle(isSelected ? AstralTheme.actionForeground : AstralTheme.textSecondary)
+            .foregroundStyle(tab == id ? Color.black.opacity(0.85) : Color.white.opacity(0.6))
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
             .background {
-                if isSelected {
+                if tab == id {
                     Capsule()
-                        .fill(AstralTheme.actionFill)
+                        .fill(Color.white.opacity(0.92))
                         .matchedGeometryEffect(id: "terminal-tab-thumb", in: tabThumb)
                 }
             }
@@ -280,7 +293,7 @@ struct TerminalView: View {
 
     private func quickCommandsStrip(forCloud: Bool) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 ForEach(quickCommands, id: \.self) { cmd in
                     Button {
                         if forCloud {
@@ -293,10 +306,15 @@ struct TerminalView: View {
                     } label: {
                         Text(cmd)
                             .font(AstralTheme.mono(10.5).weight(.medium))
-                            .foregroundStyle(AstralTheme.textPrimary)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 5.5)
-                            .liquidCapsule(interactive: true)
+                            .foregroundStyle(Color.white.opacity(0.75))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(Color.white.opacity(0.07))
+                                    .overlay(
+                                        Capsule(style: .continuous)
+                                            .stroke(Color.white.opacity(0.12), lineWidth: 0.8)))
                     }
                     .buttonStyle(.plain)
                 }
@@ -304,6 +322,7 @@ struct TerminalView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
         }
+        .background(Color.white.opacity(0.02))
     }
 
     // MARK: Agent activity feed
@@ -341,32 +360,35 @@ struct TerminalView: View {
         }
     }
 
-    /// The V5 empty state — features the system-adaptive `AIcon(AstralIcons.computer)`
-    /// inside an iOS 27 Liquid Glass circle.
+    /// The V5 empty state — features the large custom `AstralComputerIcon`
+    /// workstation display instead of raw rectangles.
     private var agentEmptyState: some View {
         VStack(spacing: 14) {
             Spacer(minLength: 28)
 
             ZStack {
                 Circle()
-                    .frame(width: 108, height: 108)
-                    .liquidGlass(in: Circle(), tint: AstralTheme.orbGreen.opacity(0.08), interactive: true)
+                    .fill(AstralTheme.orbGreen.opacity(0.06))
+                    .frame(width: 112, height: 112)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1))
 
-                AIcon(
-                    AstralIcons.computer,
-                    size: 46,
-                    strokeWidth: 1.9,
-                    color: AstralTheme.textPrimary)
+                AstralComputerIcon(
+                    size: 56,
+                    color: Color.white.opacity(0.55),
+                    accentColor: AstralTheme.orbGreen,
+                    isActive: true)
             }
             .accessibilityHidden(true)
 
             Text(L("sandbox.computerIdle", "Files"))
                 .font(AstralTheme.headline(14.5))
-                .foregroundStyle(AstralTheme.textPrimary)
+                .foregroundStyle(Color.white.opacity(0.65))
 
             Text(L("sandbox.activity.empty", "Files"))
                 .font(AstralTheme.mono(10.5))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.38))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 28)
@@ -396,7 +418,7 @@ struct TerminalView: View {
                             ActivityOrb(color: AstralTheme.orbGreen, size: 10)
                             Text(L("sandbox.working", "Files"))
                                 .font(AstralTheme.mono(11))
-                                .foregroundStyle(AstralTheme.textSecondary)
+                                .foregroundStyle(Color.white.opacity(0.5))
                         }
                         .id("busy")
                     }
@@ -428,14 +450,12 @@ struct TerminalView: View {
                 .foregroundStyle(AstralTheme.orbGreen)
             Text(L("sandbox.welcome", "Files"))
                 .font(AstralTheme.mono(11.5))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.55))
             Text("Type `help` or `neofetch` to inspect your Linux system.")
                 .font(AstralTheme.mono(11.5))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.5))
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 6)
     }
 
     private func entryView(_ entry: SandboxEntry) -> some View {
@@ -446,7 +466,7 @@ struct TerminalView: View {
                     .foregroundStyle(AstralTheme.orbGreen)
                 Text(entry.command)
                     .font(AstralTheme.mono(12))
-                    .foregroundStyle(AstralTheme.textPrimary)
+                    .foregroundStyle(Color.white.opacity(0.92))
                     .textSelection(.enabled)
             }
 
@@ -455,8 +475,8 @@ struct TerminalView: View {
                     .font(AstralTheme.mono(11.5))
                     .foregroundStyle(
                         entry.exitCode == 0
-                            ? AstralTheme.textSecondary
-                            : AstralTheme.danger)
+                            ? Color.white.opacity(0.68)
+                            : Color(red: 0.98, green: 0.45, blue: 0.45).opacity(0.88))
                     .textSelection(.enabled)
             }
 
@@ -464,12 +484,8 @@ struct TerminalView: View {
                 format: L("sandbox.exitMeta", "Files"),
                 entry.exitCode, entry.duration))
                 .font(AstralTheme.mono(9.5))
-                .foregroundStyle(AstralTheme.moonDust)
+                .foregroundStyle(Color.white.opacity(0.28))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
     // MARK: Shell input
@@ -484,7 +500,7 @@ struct TerminalView: View {
                 L("sandbox.placeholder", "Files"),
                 text: $draft)
                 .font(AstralTheme.mono(13))
-                .foregroundStyle(AstralTheme.textPrimary)
+                .foregroundStyle(.white)
                 .tint(AstralTheme.orbGreen)
                 .focused($focused)
                 .submitLabel(.go)
@@ -494,21 +510,17 @@ struct TerminalView: View {
 
             Button(action: runDraft) {
                 ZStack {
-                    if draft.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Circle()
-                            .frame(width: 28, height: 28)
-                            .liquidGlass(in: Circle(), interactive: true)
-                    } else {
-                        Circle()
-                            .fill(AstralTheme.orbGreen)
-                            .frame(width: 28, height: 28)
-                    }
+                    Circle()
+                        .fill(draft.trimmingCharacters(in: .whitespaces).isEmpty
+                            ? Color.white.opacity(0.12)
+                            : AstralTheme.orbGreen)
+                        .frame(width: 28, height: 28)
                     AIcon(
                         AstralIcons.arrowUp,
                         size: 14,
                         strokeWidth: 2.5,
                         color: draft.trimmingCharacters(in: .whitespaces).isEmpty
-                            ? AstralTheme.textSecondary
+                            ? Color.white.opacity(0.35)
                             : .black)
                 }
             }
@@ -517,9 +529,13 @@ struct TerminalView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .liquidGlass(in: Capsule(), interactive: true)
-        .padding(.horizontal, 14)
-        .padding(.bottom, 8)
+        .background(
+            Rectangle().fill(Color.white.opacity(0.05)))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+        }
     }
 
     private func runDraft() {
@@ -554,22 +570,18 @@ struct TerminalView: View {
                         cloudWelcome
                     }
 
-                    if !cloud.liveOutput.isEmpty {
-                        Text(cloud.liveOutput)
-                            .font(AstralTheme.mono(11.5))
-                            .foregroundStyle(AstralTheme.textPrimary)
-                            .textSelection(.enabled)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .liquidGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
+                    Text(cloud.liveOutput.isEmpty ? "" : cloud.liveOutput)
+                        .font(AstralTheme.mono(11.5))
+                        .foregroundStyle(Color.white.opacity(0.82))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     if cloudRunning {
                         HStack(spacing: 6) {
                             ActivityOrb(color: AstralTheme.orbGreen, size: 10)
                             Text(L("sandbox.cloudBooting", "Files"))
                                 .font(AstralTheme.mono(11))
-                                .foregroundStyle(AstralTheme.textSecondary)
+                                .foregroundStyle(Color.white.opacity(0.5))
                         }
                         .id("cloud-busy")
                     }
@@ -598,15 +610,13 @@ struct TerminalView: View {
                 .foregroundStyle(AstralTheme.orbGreen)
             Text(L("sandbox.cloudWelcome", "Files"))
                 .font(AstralTheme.mono(11.5))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.5))
                 .fixedSize(horizontal: false, vertical: true)
             Text("root@astral-cloud:~# ")
                 .font(AstralTheme.mono(11.5))
-                .foregroundStyle(AstralTheme.textSecondary)
+                .foregroundStyle(Color.white.opacity(0.5))
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 6)
     }
 
     private var cloudInputBar: some View {
@@ -619,7 +629,7 @@ struct TerminalView: View {
                 L("sandbox.cloudPlaceholder", "Files"),
                 text: $cloudDraft)
                 .font(AstralTheme.mono(13))
-                .foregroundStyle(AstralTheme.textPrimary)
+                .foregroundStyle(.white)
                 .tint(AstralTheme.orbGreen)
                 .focused($cloudFocused)
                 .submitLabel(.go)
@@ -629,21 +639,17 @@ struct TerminalView: View {
 
             Button(action: runCloudDraft) {
                 ZStack {
-                    if cloudDraft.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Circle()
-                            .frame(width: 28, height: 28)
-                            .liquidGlass(in: Circle(), interactive: true)
-                    } else {
-                        Circle()
-                            .fill(AstralTheme.orbGreen)
-                            .frame(width: 28, height: 28)
-                    }
+                    Circle()
+                        .fill(cloudDraft.trimmingCharacters(in: .whitespaces).isEmpty
+                            ? Color.white.opacity(0.12)
+                            : AstralTheme.orbGreen)
+                        .frame(width: 28, height: 28)
                     AIcon(
                         AstralIcons.arrowUp,
                         size: 14,
                         strokeWidth: 2.5,
                         color: cloudDraft.trimmingCharacters(in: .whitespaces).isEmpty
-                            ? AstralTheme.textSecondary
+                            ? Color.white.opacity(0.35)
                             : .black)
                 }
             }
@@ -652,9 +658,13 @@ struct TerminalView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .liquidGlass(in: Capsule(), interactive: true)
-        .padding(.horizontal, 14)
-        .padding(.bottom, 8)
+        .background(
+            Rectangle().fill(Color.white.opacity(0.05)))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
+        }
     }
 
     private func runCloudDraft() {
@@ -673,7 +683,7 @@ struct TerminalView: View {
     }
 }
 
-// MARK: - Agent activity row (System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Agent activity row
 
 private struct AgentActivityRow: View {
     let entry: AgentActivityEntry
@@ -702,13 +712,15 @@ private struct AgentActivityRow: View {
                     kindIcon,
                     size: 12,
                     strokeWidth: 2.1,
-                    color: AstralTheme.textPrimary)
-                    .frame(width: 24, height: 24)
-                    .liquidGlass(in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    color: Color.white.opacity(0.75))
+                    .frame(width: 22, height: 22)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.white.opacity(0.07)))
 
                 Text(entry.toolName)
                     .font(AstralTheme.mono(11.5).weight(.semibold))
-                    .foregroundStyle(AstralTheme.textPrimary)
+                    .foregroundStyle(Color.white.opacity(0.85))
 
                 Spacer(minLength: 6)
 
@@ -719,20 +731,20 @@ private struct AgentActivityRow: View {
                             size: 8)
                         Text(L("sandbox.working", "Files"))
                             .font(AstralTheme.mono(10))
-                            .foregroundStyle(AstralTheme.textSecondary)
+                            .foregroundStyle(Color.white.opacity(0.45))
                     }
                 } else if let duration = entry.duration {
                     Text(String(format: "%.1fs", duration))
                         .font(AstralTheme.mono(10).weight(.semibold))
                         .foregroundStyle(entry.status == .failed
-                            ? AstralTheme.danger
-                            : AstralTheme.textSecondary)
+                            ? Color(red: 0.98, green: 0.45, blue: 0.45).opacity(0.9)
+                            : Color.white.opacity(0.4))
                     ZStack {
                         Circle()
                             .fill(entry.status == .failed
-                                ? AstralTheme.danger
-                                : AstralTheme.orbGreen)
-                            .frame(width: 13, height: 13)
+                                ? Color(red: 0.98, green: 0.45, blue: 0.45).opacity(0.9)
+                                : AstralTheme.orbGreen.opacity(0.9))
+                            .frame(width: 12, height: 12)
                         AIcon(
                             entry.status == .failed ? AstralIcons.close : AstralIcons.check,
                             size: 7.5,
@@ -745,7 +757,7 @@ private struct AgentActivityRow: View {
             if !entry.title.isEmpty {
                 Text(entry.title)
                     .font(AstralTheme.mono(12))
-                    .foregroundStyle(AstralTheme.textPrimary)
+                    .foregroundStyle(Color.white.opacity(0.92))
                     .textSelection(.enabled)
                     .lineLimit(expanded ? nil : 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -755,8 +767,8 @@ private struct AgentActivityRow: View {
                 Text(entry.outputPreview)
                     .font(AstralTheme.mono(11))
                     .foregroundStyle(entry.status == .failed
-                        ? AstralTheme.danger
-                        : AstralTheme.textSecondary)
+                        ? Color(red: 0.98, green: 0.45, blue: 0.45).opacity(0.75)
+                        : Color.white.opacity(0.5))
                     .textSelection(.enabled)
                     .lineLimit(expanded ? nil : 3)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -764,13 +776,19 @@ private struct AgentActivityRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: 13, style: .continuous),
-            tint: entry.status == .failed ? AstralTheme.danger.opacity(0.08) : .clear,
-            interactive: true)
-        .shimmer(active: entry.status == .running, cornerRadius: 13)
-        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.04)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    entry.status == .failed
+                        ? Color(red: 0.98, green: 0.45, blue: 0.45).opacity(0.25)
+                        : Color.white.opacity(0.07),
+                    lineWidth: 1))
+        .shimmer(active: entry.status == .running, cornerRadius: 12)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture {
             withAnimation(.smooth(duration: 0.2)) { expanded.toggle() }
         }

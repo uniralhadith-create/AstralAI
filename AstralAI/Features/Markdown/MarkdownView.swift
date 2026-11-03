@@ -1,25 +1,24 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Markdown document view (V5.0.0 — System-Adaptive iOS 27 Liquid Glass Markdown)
+// MARK: - Markdown document view (V5.0.0 — iOS 27 Liquid Glass Editorial Markdown)
 
 /// Renders a full markdown document as native SwiftUI views inside the
-/// V5 iOS 27 Liquid Glass design language.
+/// V5 Liquid Glass design language.
 ///
 /// V5.0.0 Upgrades:
 /// - **Natural AttributedString paragraphs**: Inline links, bold, italic,
-///   strikethrough, inline code chips, and math flow inside a single
+///   strikethrough, inline code chips, and math now flow inside a single
 ///   native `Text(AttributedString)` whenever no block image is present —
 ///   fixing word-splitting, RTL Arabic shaping, and baseline alignment.
-/// - **System-Adaptive iOS 27 Liquid Glass surfaces**: Tables, blockquotes,
-///   callouts, math blocks, and code blocks use native `.liquidGlass`
-///   (`glassEffect`) and adapt seamlessly to system Light & Dark mode.
+/// - **Adaptive Light & Dark Mode surfaces**: Tables, blockquotes, callouts,
+///   and inline code chips adapt cleanly in both light and dark mode.
 /// - **Rich Table Cell Inlines & Copy**: Table cells parse inline markdown
 ///   (`**bold**`, `` `code` ``, `[links](url)`) and tables include a one-tap
-///   copy button with vector `AIcon`.
+///   copy button.
 /// - **Task List Checkboxes & Callout Admonitions**: `- [x]` and `- [ ]`
 ///   render with crisp vector checkboxes, and `> [!NOTE]` / `> [!WARNING]`
-///   render as semantic Liquid Glass callout cards.
+///   render as semantic callout cards.
 struct MarkdownView: View {
     let blocks: [MarkdownBlock]
 
@@ -149,9 +148,12 @@ struct MarkdownBlockView: View {
         .padding(.horizontal, 13)
         .padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .liquidGlass(
-            in: RoundedRectangle(cornerRadius: 14, style: .continuous),
-            tint: accent.opacity(0.05))
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AstralTheme.surfaceSecondary.opacity(0.65)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AstralTheme.separator.opacity(0.8), lineWidth: 0.9))
     }
 
     private struct CalloutSpec {
@@ -187,15 +189,16 @@ struct MarkdownBlockView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     if let checked = taskState.checked {
                         ZStack {
+                            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
+                                .fill(checked ? AstralTheme.orbGreen : AstralTheme.surfaceSecondary)
+                                .frame(width: 16, height: 16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4.5, style: .continuous)
+                                        .stroke(
+                                            checked ? AstralTheme.orbGreen : AstralTheme.separator,
+                                            lineWidth: 1.2))
                             if checked {
-                                RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-                                    .fill(AstralTheme.orbGreen)
-                                    .frame(width: 16, height: 16)
                                 AIcon(AstralIcons.check, size: 10, strokeWidth: 3.0, color: .black)
-                            } else {
-                                RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-                                    .frame(width: 16, height: 16)
-                                    .liquidGlass(in: RoundedRectangle(cornerRadius: 4.5, style: .continuous))
                             }
                         }
                         .offset(y: 2)
@@ -242,7 +245,7 @@ struct MarkdownBlockView: View {
     }
 }
 
-// MARK: - Table (V5 System-Adaptive Liquid Glass Table)
+// MARK: - Table (V5 Liquid Glass Table with Inline Formatting & Copy)
 
 private struct MarkdownTableView: View {
     let header: [String]
@@ -269,18 +272,17 @@ private struct MarkdownTableView: View {
                                 .font(AstralTheme.mono(10).weight(.semibold))
                                 .foregroundStyle(AstralTheme.success)
                         } else {
-                            AIcon(AstralIcons.copy, size: 11.5, strokeWidth: 2.1, color: AstralTheme.textSecondary)
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(AstralTheme.textSecondary)
                         }
                     }
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3.5)
-                    .liquidCapsule(interactive: true)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(AstralTheme.actionFill.opacity(0.05))
+            .background(AstralTheme.surfaceSecondary.opacity(0.85))
 
             Divider().overlay(AstralTheme.separator)
 
@@ -288,7 +290,12 @@ private struct MarkdownTableView: View {
                 tableGrid
             }
         }
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(AstralTheme.surface))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(AstralTheme.separator, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
@@ -299,7 +306,7 @@ private struct MarkdownTableView: View {
                     headerCell(cell)
                 }
             }
-            .background(AstralTheme.actionFill.opacity(0.04))
+            .background(AstralTheme.surfaceSecondary.opacity(0.55))
 
             Divider().overlay(AstralTheme.separator)
 
@@ -340,7 +347,7 @@ private struct MarkdownTableView: View {
             .frame(minWidth: 108, maxWidth: 240, alignment: .leading)
             .background(
                 rowIndex % 2 == 1
-                    ? AstralTheme.actionFill.opacity(0.025)
+                    ? AstralTheme.surfaceSecondary.opacity(0.28)
                     : Color.clear)
     }
 

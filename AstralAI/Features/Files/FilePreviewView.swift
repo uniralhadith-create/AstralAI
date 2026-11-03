@@ -1,7 +1,7 @@
 import SwiftUI
 import QuickLook
 
-// MARK: - File preview (V5 System-Adaptive iOS 27 Liquid Glass)
+// MARK: - File preview
 
 /// Sheet preview for a workspace file: rendered markdown, syntax-highlighted
 /// source, inline images, or QuickLook for PDFs, spreadsheets, archives and
@@ -57,25 +57,30 @@ struct FilePreviewView: View {
                 Spacer(minLength: 8)
 
                 ShareLink(item: url) {
-                    AIcon(
-                        AstralIcons.share,
-                        size: 14,
-                        strokeWidth: 2.2,
-                        color: AstralTheme.textPrimary)
-                        .frame(width: 32, height: 32)
-                        .liquidGlass(in: Circle(), interactive: true)
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AstralTheme.textPrimary)
+                        .frame(width: 30, height: 30)
+                        .glassPill()
                 }
                 .accessibilityLabel(Text(L("common.share", "Shared")))
 
-                GlassCloseButton {
+                Button {
                     dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AstralTheme.textPrimary)
+                        .frame(width: 30, height: 30)
+                        .glassPill()
                 }
+                .accessibilityLabel(Text(L("common.close", "Shared")))
             }
             .padding(.horizontal, AstralTheme.Spacings.m)
             .padding(.vertical, AstralTheme.Spacings.s)
 
             Rectangle()
-                .fill(AstralTheme.separator)
+                .fill(Color.white.opacity(0.06))
                 .frame(height: 1)
         }
     }
@@ -179,11 +184,9 @@ struct FilePreviewView: View {
 
     private var unavailableText: some View {
         VStack(spacing: AstralTheme.Spacings.s) {
-            AIcon(
-                AstralIcons.folder,
-                size: 30,
-                strokeWidth: 1.8,
-                color: AstralTheme.moonDust)
+            Image(systemName: "questionmark.folder")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(AstralTheme.moonDust)
             Text(L("files.preview.unreadable", "Files"))
                 .font(AstralTheme.body(13))
                 .foregroundStyle(AstralTheme.textSecondary)

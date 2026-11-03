@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Headers editor (V5 System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Headers editor
 
 /// Edits the extra HTTP headers sent with custom-protocol requests. Rows
 /// are mirrored from the dictionary binding on appear and written back on
@@ -35,13 +35,10 @@ struct HeadersEditorView: View {
                     Button {
                         rows.removeAll { $0.id == row.id }
                     } label: {
-                        AIcon(
-                            AstralIcons.trash,
-                            size: 14,
-                            strokeWidth: 2.1,
-                            color: AstralTheme.danger)
+                        Image(systemName: "trash")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AstralTheme.danger)
                             .frame(width: 34, height: 34)
-                            .liquidGlass(in: Circle(), interactive: true)
                     }
                     .buttonStyle(.plain)
                 }
@@ -50,19 +47,9 @@ struct HeadersEditorView: View {
             Button {
                 rows.append(HeaderRow(id: UUID(), key: "", value: ""))
             } label: {
-                HStack(spacing: 6) {
-                    AIcon(
-                        AstralIcons.plus,
-                        size: 13,
-                        strokeWidth: 2.3,
-                        color: AstralTheme.auroraCyan)
-                    Text(L("settings.addHeader", "Settings"))
-                        .font(AstralTheme.headline(13))
-                        .foregroundStyle(AstralTheme.auroraCyan)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .liquidCapsule(interactive: true)
+                Label(L("settings.addHeader", "Settings"), systemImage: "plus.circle")
+                    .font(AstralTheme.body(13))
+                    .foregroundStyle(AstralTheme.auroraCyan)
             }
             .buttonStyle(.plain)
         }

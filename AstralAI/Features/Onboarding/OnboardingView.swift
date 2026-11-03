@@ -1,7 +1,7 @@
 import SwiftUI
 import UserNotifications
 
-// MARK: - Onboarding (V5 System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Onboarding
 
 /// First-launch onboarding: welcome, language selection and provider setup.
 /// The completion closure reports whether the user wants to jump straight
@@ -52,15 +52,10 @@ struct OnboardingView: View {
                 .frame(width: 164, height: 164)
                 .rotationEffect(.degrees(spinning ? 360 : 0))
 
-                ZStack {
-                    Circle()
-                        .frame(width: 140, height: 140)
-                        .liquidGlass(in: Circle(), interactive: true)
-                    Image("AstralMark")
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: 108, height: 108)
-                }
+                Image("AstralMark")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 140, height: 140)
             }
             .onAppear {
                 withAnimation(.linear(duration: 26).repeatForever(autoreverses: false)) {
@@ -112,11 +107,9 @@ struct OnboardingView: View {
             env.language.language = option
         } label: {
             HStack(spacing: AstralTheme.Spacings.s) {
-                AIcon(
-                    AstralIcons.globe,
-                    size: 16,
-                    strokeWidth: 2.1,
-                    color: AstralTheme.auroraCyan)
+                Image(systemName: "globe")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AstralTheme.auroraCyan)
 
                 Text(option.displayName)
                     .font(AstralTheme.headline(16))
@@ -125,11 +118,9 @@ struct OnboardingView: View {
                 Spacer(minLength: 0)
 
                 if selected {
-                    AIcon(
-                        AstralIcons.checkCircle,
-                        size: 18,
-                        strokeWidth: 2.3,
-                        color: AstralTheme.auroraCyan)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(AstralTheme.auroraCyan)
                 }
             }
             .padding(AstralTheme.Spacings.m)
@@ -137,6 +128,11 @@ struct OnboardingView: View {
                 cornerRadius: AstralTheme.Radius.medium,
                 depth: .raised,
                 tint: selected ? AstralTheme.auroraCyan : .white)
+            .overlay(
+                RoundedRectangle(cornerRadius: AstralTheme.Radius.medium, style: .continuous)
+                    .stroke(
+                        selected ? AstralTheme.auroraCyan : Color.white.opacity(0.16),
+                        lineWidth: selected ? 2 : 1))
         }
         .buttonStyle(.plain)
         .animation(.smooth(duration: 0.25), value: selected)
@@ -146,16 +142,9 @@ struct OnboardingView: View {
 
     private var connectPage: some View {
         VStack(spacing: AstralTheme.Spacings.l) {
-            ZStack {
-                Circle()
-                    .frame(width: 76, height: 76)
-                    .liquidGlass(in: Circle(), interactive: true)
-                AIcon(
-                    AstralIcons.key,
-                    size: 32,
-                    strokeWidth: 1.9,
-                    color: AstralTheme.auroraCyan)
-            }
+            Image(systemName: "key.horizontal")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(AstralTheme.auroraCyan)
 
             Text(L("onboarding.connectTitle", "Onboarding"))
                 .font(AstralTheme.title(22))
@@ -172,15 +161,9 @@ struct OnboardingView: View {
                 Button {
                     finish(openSettings: true)
                 } label: {
-                    HStack(spacing: 8) {
-                        AIcon(
-                            AstralIcons.plug,
-                            size: 15,
-                            strokeWidth: 2.3,
-                            color: AstralTheme.actionForeground)
-                        Text(L("onboarding.setupProvider", "Onboarding"))
-                    }
-                    .frame(maxWidth: .infinity)
+                    Label(
+                        L("onboarding.setupProvider", "Onboarding"),
+                        systemImage: "arrow.right.circle.fill")
                 }
                 .buttonStyle(AuroraButtonStyle())
 
@@ -188,7 +171,6 @@ struct OnboardingView: View {
                     finish(openSettings: false)
                 } label: {
                     Text(L("onboarding.skip", "Onboarding"))
-                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(GlassButtonStyle())
             }

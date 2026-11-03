@@ -1,18 +1,18 @@
 import SwiftUI
 
-// MARK: - Astral icon system (V5.0.0 — System-Adaptive Vector Icon Engine)
+// MARK: - Astral icon system (V5.0.0)
 //
 // 50+ professionally designed icons (the MIT-licensed Lucide set,
 // downloaded from lucide.dev) are bundled in Resources/Icons/*.svg and
-// rendered at runtime by this vector engine:
+// rendered at runtime by this tiny vector engine:
 //
-//   AIcon("monitor")            // 18pt, system-adaptive stroke
+//   AIcon("monitor")            // 18pt, theme stroke
 //   AIcon("cloud", size: 22)    // any size, razor sharp
 //
-// Every icon is a single stroked SwiftUI `Path` rendered with the caller's
-// semantic color (`AstralTheme.textPrimary`, `AstralTheme.textSecondary`,
-// etc.), so every glyph adapts automatically to iOS 27 Light Mode, Dark
-// Mode, and Liquid Glass materials.
+// V5.0.0 adds `AstralComputerIcon` — a dedicated multi-detail vector
+// computer workstation glyph (Studio Display bezel, inner screen, live
+// terminal prompt `>_`, and sculpted aluminum stand) so the Astra Computer
+// frame header and bar unmistakably look like a sleek modern computer.
 
 /// Renders a bundled Lucide icon as a stroked vector shape.
 ///
@@ -47,6 +47,8 @@ public struct AIcon: View {
                             lineCap: .round,
                             lineJoin: .round))
             } else {
+                // Graceful fallback: a soft rounded square so a missing
+                // icon never renders as a hole in the UI.
                 RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
                     .strokeBorder(
                         color.opacity(0.4),
@@ -58,6 +60,7 @@ public struct AIcon: View {
 
     // MARK: Cache
 
+    /// Parsed paths keyed by icon name (parsing is one-shot per icon).
     private static let cacheLock = NSLock()
     private static var cache: [String: Path?] = [:]
 
@@ -88,6 +91,7 @@ public struct AIcon: View {
         return LucideSVGParser.parse(svg)
     }
 
+    /// Scales the 24×24 design space into the view's own square frame.
     private struct StrokedIconPath: Shape {
         let path: Path
 
@@ -100,12 +104,12 @@ public struct AIcon: View {
     }
 }
 
-// MARK: - System-Adaptive Astra Computer Vector Icon
+// MARK: - Custom V5 Astra Computer Vector Icon
 
-/// System-adaptive wrapper around `AIcon(AstralIcons.computer)` (`monitor.svg`)
-/// so every computer icon in the app uses the exact same stroked vector
-/// system as all other Lucide icons and adapts automatically to iOS 27
-/// Light/Dark mode and Liquid Glass surfaces.
+/// A crisp, unmistakable custom vector computer icon (Studio Display screen,
+/// inner glass bezel, terminal prompt chevron `>_`, status LED, neck & base).
+/// Replaces generic flat rectangles or emoji computer glyphs across the
+/// Astra Computer bar, terminal header, and empty states.
 public struct AstralComputerIcon: View {
     public var size: CGFloat = 18
     public var color: Color = AstralTheme.textPrimary
@@ -125,12 +129,74 @@ public struct AstralComputerIcon: View {
     }
 
     public var body: some View {
-        AIcon(
-            AstralIcons.computer,
-            size: size,
-            strokeWidth: 2.0,
-            color: color)
-            .accessibilityHidden(true)
+        Canvas { context, canvasSize in
+            let s = min(canvasSize.width, canvasSize.height) / 24.0
+            let line = max(1.2, 1.85 * s)
+
+            // 1. Outer Studio Display screen housing
+            let screenRect = CGRect(x: 2.0 * s, y: 2.5 * s, width: 20.0 * s, height: 14.0 * s)
+            let screenPath = Path(roundedRect: screenRect, cornerRadius: 2.8 * s, style: .continuous)
+            context.fill(
+                screenPath,
+                with: .color(color.opacity(isActive ? 0.14 : 0.07)))
+            context.stroke(
+                screenPath,
+                with: .color(color),
+                style: StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round))
+
+            // 2. Bottom chin bar separator
+            var chinLine = Path()
+            chinLine.move(to: CGPoint(x: 2.3 * s, y: 13.5 * s))
+            chinLine.addLine(to: CGPoint(x: 21.7 * s, y: 13.5 * s))
+            context.stroke(
+                chinLine,
+                with: .color(color.opacity(0.55)),
+                style: StrokeStyle(lineWidth: max(1.0, 1.2 * s), lineCap: .round))
+
+            // 3. Terminal prompt `>_` inside the display
+            var promptChevron = Path()
+            promptChevron.move(to: CGPoint(x: 6.0 * s, y: 6.3 * s))
+            promptChevron.addLine(to: CGPoint(x: 8.6 * s, y: 8.2 * s))
+            promptChevron.addLine(to: CGPoint(x: 6.0 * s, y: 10.1 * s))
+            context.stroke(
+                promptChevron,
+                with: .color(isActive ? accentColor : color.opacity(0.9)),
+                style: StrokeStyle(lineWidth: max(1.1, 1.6 * s), lineCap: .round, lineJoin: .round))
+
+            var promptCursor = Path()
+            promptCursor.move(to: CGPoint(x: 10.4 * s, y: 10.1 * s))
+            promptCursor.addLine(to: CGPoint(x: 13.8 * s, y: 10.1 * s))
+            context.stroke(
+                promptCursor,
+                with: .color(isActive ? accentColor : color.opacity(0.85)),
+                style: StrokeStyle(lineWidth: max(1.1, 1.6 * s), lineCap: .round))
+
+            // 4. Sculpted stand legs & base
+            var standPath = Path()
+            standPath.move(to: CGPoint(x: 9.5 * s, y: 16.5 * s))
+            standPath.addLine(to: CGPoint(x: 8.2 * s, y: 21.0 * s))
+            standPath.move(to: CGPoint(x: 14.5 * s, y: 16.5 * s))
+            standPath.addLine(to: CGPoint(x: 15.8 * s, y: 21.0 * s))
+            standPath.move(to: CGPoint(x: 6.0 * s, y: 21.0 * s))
+            standPath.addLine(to: CGPoint(x: 18.0 * s, y: 21.0 * s))
+            context.stroke(
+                standPath,
+                with: .color(color),
+                style: StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round))
+
+            // 5. Center power indicator dot on chin
+            let dotRadius = 0.85 * s
+            let dotRect = CGRect(
+                x: 12.0 * s - dotRadius,
+                y: 15.0 * s - dotRadius,
+                width: dotRadius * 2,
+                height: dotRadius * 2)
+            context.fill(
+                Path(ellipseIn: dotRect),
+                with: .color(isActive ? accentColor : color.opacity(0.75)))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
@@ -159,6 +225,8 @@ enum LucideSVGParser {
         let attributes: [String: String]
     }
 
+    /// Finds <path>, <rect>, <circle>, <ellipse>, <line>, <polyline> and
+    /// <polygon> elements — self-closing or not — with their attributes.
     private static func shapeElements(in svg: String) -> [ShapeElement] {
         var elements: [ShapeElement] = []
         let tags = ["path", "rect", "circle", "ellipse", "line", "polyline", "polygon"]
@@ -178,6 +246,7 @@ enum LucideSVGParser {
         return elements
     }
 
+    /// Splits `key="value"` pairs (double or single quoted).
     private static func attributes(of source: String) -> [String: String] {
         var result: [String: String] = [:]
         let pattern = #"([a-zA-Z:-]+)\s*=\s*("([^"]*)"|'([^']*)')"#
@@ -680,9 +749,4 @@ enum AstralIcons {
     static let fileUp = "file-up"
     static let plug = "plug-zap"
     static let users = "users"
-
-    // V5.0.0 corrected source: referenced by the table copy buttons
-    // (MessageViews / MarkdownView) and the onboarding language row.
-    static let copy = "copy"
-    static let globe = "globe"
 }

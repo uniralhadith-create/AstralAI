@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Section header (System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Section header (V5)
 
 public struct SectionHeader: View {
     let icon: String
@@ -13,6 +13,8 @@ public struct SectionHeader: View {
         self.table = table
     }
 
+    /// Maps common SF Symbol names used by callers to bundled Lucide icons
+    /// when a direct match exists, falling back cleanly to SF Symbols.
     private var mappedAstralIcon: String? {
         switch icon {
         case "checklist": return AstralIcons.todo
@@ -26,32 +28,32 @@ public struct SectionHeader: View {
         case "server.rack": return AstralIcons.hardDrive
         case "antenna.radiowaves.left.and.right": return AstralIcons.wifi
         case "slider.horizontal.3": return AstralIcons.settings
-        case "cube.transparent": return AstralIcons.package
         default: return nil
         }
     }
 
     public var body: some View {
         HStack(spacing: AstralTheme.Spacings.s) {
-            Group {
+            ZStack {
+                Circle()
+                    .fill(AstralTheme.actionFill)
+                    .frame(width: 25, height: 25)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.22), lineWidth: 0.7))
+
                 if let lucide = mappedAstralIcon {
                     AIcon(
                         lucide,
-                        size: 13,
-                        strokeWidth: 2.2,
-                        color: AstralTheme.textPrimary)
+                        size: 12.5,
+                        strokeWidth: 2.3,
+                        color: AstralTheme.actionForeground)
                 } else {
                     Image(systemName: icon)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(AstralTheme.textPrimary)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AstralTheme.actionForeground)
                 }
             }
-            .frame(width: 26, height: 26)
-            .liquidGlass(
-                in: Circle(),
-                tint: AstralTheme.actionFill.opacity(0.08),
-                interactive: true)
-
             Text(L(titleKey, table))
                 .font(AstralTheme.headline(15))
                 .foregroundStyle(AstralTheme.textPrimary)
@@ -100,12 +102,14 @@ public struct ErrorBanner: View {
 
     public var body: some View {
         HStack(spacing: AstralTheme.Spacings.s) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AstralTheme.danger)
-                .frame(width: 28, height: 28)
-                .liquidGlass(in: Circle(), tint: AstralTheme.danger.opacity(0.14))
-
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(AstralTheme.danger.opacity(0.14))
+                    .frame(width: 28, height: 28)
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AstralTheme.danger)
+            }
             Text(message)
                 .font(AstralTheme.body(13))
                 .foregroundStyle(AstralTheme.textPrimary)
@@ -114,14 +118,14 @@ public struct ErrorBanner: View {
             if let onRetry {
                 Button(action: onRetry) {
                     HStack(spacing: 4) {
-                        AIcon(AstralIcons.refresh, size: 11, strokeWidth: 2.4, color: AstralTheme.textPrimary)
+                        AIcon(AstralIcons.refresh, size: 11, strokeWidth: 2.4, color: AstralTheme.actionForeground)
                         Text(L("common.retry", "Shared"))
                             .font(AstralTheme.headline(12))
-                            .foregroundStyle(AstralTheme.textPrimary)
+                            .foregroundStyle(AstralTheme.actionForeground)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .liquidCapsule(interactive: true)
+                    .background(Capsule().fill(AstralTheme.actionFill))
                 }
                 .buttonStyle(.plain)
             }
@@ -133,6 +137,8 @@ public struct ErrorBanner: View {
 
 // MARK: - Agent activity orb
 
+/// The living work orb (V5.0.0): a silver glass ring, a soft green inner
+/// disc, and a green satellite dot orbiting smoothly inside it.
 public struct ActivityOrb: View {
     public var color: Color = AstralTheme.orbGreen
     public var size: CGFloat = 22
@@ -145,11 +151,14 @@ public struct ActivityOrb: View {
 
     public var body: some View {
         ZStack {
+            // Silver glass ring (paper in dark mode, ink in light).
             Circle()
                 .stroke(AstralTheme.textPrimary.opacity(0.42), lineWidth: 1.2)
+            // The green atmosphere inside.
             Circle()
                 .fill(color.opacity(0.24))
                 .frame(width: size * 0.56)
+            // The orbiting satellite — the "alive" signal.
             Circle()
                 .fill(color)
                 .frame(width: size * 0.22)
@@ -165,7 +174,7 @@ public struct ActivityOrb: View {
     }
 }
 
-// MARK: - Progress bar (System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Progress bar (Liquid Glass V5 — Smooth Feathered Capsule Sheen)
 
 public struct GlassProgressView: View {
     public var progress: Double
@@ -184,6 +193,9 @@ public struct GlassProgressView: View {
             ZStack(alignment: .leading) {
                 Capsule(style: .continuous)
                     .fill(AstralTheme.separator.opacity(0.65))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 0.5))
 
                 Capsule(style: .continuous)
                     .fill(
@@ -230,7 +242,18 @@ public struct EmptyStateView: View {
 
     public var body: some View {
         VStack(spacing: AstralTheme.Spacings.m) {
-            Group {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 84, height: 84)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.35), Color.white.opacity(0.05)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing),
+                                lineWidth: 1))
                 if let lucide = mappedAstralIcon {
                     AIcon(lucide, size: 32, strokeWidth: 1.8, color: AstralTheme.accent)
                 } else {
@@ -239,9 +262,6 @@ public struct EmptyStateView: View {
                         .foregroundStyle(AstralTheme.accent)
                 }
             }
-            .frame(width: 84, height: 84)
-            .liquidGlass(in: Circle(), interactive: true)
-
             Text(L(titleKey, table))
                 .font(AstralTheme.headline(18))
                 .foregroundStyle(AstralTheme.textPrimary)

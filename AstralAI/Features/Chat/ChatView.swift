@@ -1,13 +1,14 @@
 import SwiftUI
 import Combine
 
-// MARK: - Chat view (V5.0.0 — System-Adaptive iOS 27 Liquid Glass Experience)
+// MARK: - Chat view (V5.0.0 — iOS 27 Liquid Glass Experience)
 
 /// The V5 Liquid Glass chat experience — and the app's only permanent
-/// screen. Every header orb, model switcher, turn-status strip, task board,
-/// suggestion chip, Astra Computer banner, composer, and drawer uses native
-/// system-adaptive iOS 27 Liquid Glass (`glassEffect` / `.liquidGlass`) and
-/// unified SVG vector icons (`AIcon`).
+/// screen. A compact floating glass header carrying the in-chat model
+/// switcher, a live turn-status strip with smooth capsule-clipped shimmer,
+/// a date-separated timeline, the V5 composer with "/" skill invocation,
+/// and a zero-waste drawer (date-grouped sessions + a compact 2×2 section
+/// grid with custom vector icons).
 struct ChatView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var language: LocalizationManager
@@ -472,6 +473,7 @@ struct ChatView: View {
 
                     ZStack {
                         Circle()
+                            .fill(AstralTheme.actionFill.opacity(0.05))
                             .frame(width: 82, height: 82)
                             .liquidGlass(in: Circle(), interactive: true)
 
@@ -481,6 +483,7 @@ struct ChatView: View {
                             .frame(width: 54, height: 54)
                             .accessibilityHidden(true)
                     }
+                    .shadow(color: Color.black.opacity(0.10), radius: 14, y: 6)
 
                     Text(L("chat.emptyTitle", "Chat"))
                         .font(AstralTheme.display(31, weight: .semibold))
@@ -494,16 +497,16 @@ struct ChatView: View {
                         .lineSpacing(3)
                         .padding(.horizontal, AstralTheme.Spacings.xl)
 
-                    // Live environment pill with vector computer icon.
+                    // Live environment pill with custom computer vector icon.
                     HStack(spacing: 7) {
                         Circle()
                             .fill(AstralTheme.orbGreen)
                             .frame(width: 6, height: 6)
-                        AIcon(
-                            AstralIcons.computer,
+                        AstralComputerIcon(
                             size: 13,
-                            strokeWidth: 2.0,
-                            color: AstralTheme.textSecondary)
+                            color: AstralTheme.textSecondary,
+                            accentColor: AstralTheme.orbGreen,
+                            isActive: true)
                         Text("astra-os 5.0 · /home/astral · root + web")
                             .font(AstralTheme.mono(10.5))
                             .foregroundStyle(AstralTheme.textSecondary)
@@ -553,13 +556,16 @@ struct ChatView: View {
             startSession(with: suggestion.prompt, images: [], attachments: [])
         } label: {
             HStack(spacing: 10) {
-                AIcon(
-                    suggestion.icon,
-                    size: 15,
-                    strokeWidth: 2.1,
-                    color: AstralTheme.accent)
-                    .frame(width: 30, height: 30)
-                    .liquidGlass(in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(AstralTheme.actionFill.opacity(0.08))
+                        .frame(width: 30, height: 30)
+                    AIcon(
+                        suggestion.icon,
+                        size: 15,
+                        strokeWidth: 2.1,
+                        color: AstralTheme.accent)
+                }
 
                 Text(L(suggestion.titleKey, "Chat"))
                     .font(AstralTheme.body(13).weight(.medium))
@@ -802,7 +808,8 @@ struct ChatView: View {
         if isActive {
             sessionRowContent(session, isActive: true)
                 .liquidGlass(
-                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous),
+                    tint: AstralTheme.actionFill.opacity(0.12))
         } else {
             sessionRowContent(session, isActive: false)
         }
@@ -963,6 +970,7 @@ private struct TurnStatusStrip: View {
         .padding(.vertical, 10)
         .liquidGlass(
             in: RoundedRectangle(cornerRadius: 18, style: .continuous),
+            tint: AstralTheme.actionFill.opacity(0.05),
             interactive: true)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .padding(.horizontal, 16)
@@ -1037,7 +1045,9 @@ private struct TaskBoardStrip: View {
                             .foregroundStyle(AstralTheme.textPrimary)
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3.5)
-                            .liquidCapsule(interactive: true)
+                            .liquidCapsule(
+                                tint: AstralTheme.actionFill.opacity(0.16),
+                                interactive: true)
 
                         AIcon(
                             AstralIcons.todo,
@@ -1082,6 +1092,7 @@ private struct TaskBoardStrip: View {
         .padding(.vertical, 12)
         .liquidGlass(
             in: RoundedRectangle(cornerRadius: 22, style: .continuous),
+            tint: AstralTheme.actionFill.opacity(0.06),
             interactive: true)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .animation(.spring(response: 0.38, dampingFraction: 0.84), value: board.tasks)
@@ -1125,13 +1136,9 @@ private struct TaskBoardStrip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6.5)
-        .background {
-            if inProgress {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(Color.clear)
-                    .liquidGlass(in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-            }
-        }
+        .background(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(inProgress ? AstralTheme.actionFill.opacity(0.06) : Color.clear))
         .shimmer(active: inProgress, cornerRadius: 11)
         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: task.status)
@@ -1145,11 +1152,9 @@ private struct ToolsDroppedBanner: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            AIcon(
-                AstralIcons.shield,
-                size: 14,
-                strokeWidth: 2.2,
-                color: AstralTheme.warning)
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(red: 0.95, green: 0.72, blue: 0.28))
 
             Text(message)
                 .font(AstralTheme.body(12.5))

@@ -1,12 +1,10 @@
 import SwiftUI
 
-// MARK: - Surface card modifier (Pure System-Adaptive iOS 27 Liquid Glass)
+// MARK: - Surface card modifier (V5 iOS 27 Liquid Glass)
 
-/// The V5 surface system: every card, panel, and floating surface routes
-/// directly through ``liquidGlass(in:tint:interactive:)`` so on iOS 26/27
-/// the entire app uses the real system `glassEffect` material — adapting
-/// seamlessly to light/dark mode and content behind it instead of using
-/// opaque fills or hand-drawn borders.
+/// The V5 surface system: refined glass-infused cards with specular hairline
+/// borders for panels and raised cards, and **true iOS 27 Liquid Glass** for
+/// floating elements.
 public struct GlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat
     var depth: GlassDepth
@@ -14,23 +12,110 @@ public struct GlassCardModifier: ViewModifier {
 
     public func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let effectiveTint: Color = {
-            if tint == .white || tint == .clear {
-                return AstralTheme.actionFill.opacity(depth.materialOpacity)
-            }
-            return tint.opacity(max(depth.materialOpacity, 0.06))
-        }()
+        switch depth {
+        case .raised:
+            content
+                .background(
+                    ZStack {
+                        shape.fill(AstralTheme.surface)
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.06),
+                                    Color.clear,
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing))
+                    }
+                )
+                .overlay(
+                    shape.stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.20),
+                                AstralTheme.separator,
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing),
+                        lineWidth: 0.9))
+                .clipShape(shape)
+                .shadow(
+                    color: Color.black.opacity(0.05),
+                    radius: depth.shadowRadius + 2,
+                    y: depth.shadowY)
+        case .panel:
+            content
+                .background(
+                    ZStack {
+                        shape.fill(.ultraThinMaterial)
+                        shape.fill(AstralTheme.surface.opacity(0.82))
+                        shape.fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.08),
+                                    Color.clear,
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing))
+                    }
+                )
+                .overlay(
+                    shape.stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(0.28), location: 0.0),
+                                .init(color: AstralTheme.separator.opacity(0.85), location: 0.55),
+                                .init(color: Color.white.opacity(0.12), location: 1.0),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing),
+                        lineWidth: 1.0))
+                .clipShape(shape)
+                .shadow(
+                    color: Color.black.opacity(0.08),
+                    radius: depth.shadowRadius + 2,
+                    y: depth.shadowY)
+        case .floating:
+            floatingSurface(content, shape: shape)
+        }
+    }
 
-        content
-            .liquidGlass(
-                in: shape,
-                tint: effectiveTint,
-                interactive: depth == .floating)
+    /// Floating elements get Liquid Glass on iOS 26+, and keep the classic
+    /// translucent material stack on earlier systems.
+    @ViewBuilder
+    private func floatingSurface(_ content: Content, shape: RoundedRectangle) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .liquidGlass(in: shape, tint: tint.opacity(depth.materialOpacity))
+                .clipShape(shape)
+        } else {
+            content
+                .background(
+                    ZStack {
+                        Rectangle().fill(.ultraThinMaterial)
+                        Rectangle().fill(AstralTheme.surface.opacity(0.55))
+                        Rectangle().fill(tint.opacity(depth.materialOpacity))
+                    }
+                    .clipShape(shape)
+                )
+                .overlay(
+                    shape.stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.32),
+                                AstralTheme.separator.opacity(0.6),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing),
+                        lineWidth: 1))
+                .clipShape(shape)
+                .shadow(color: Color.black.opacity(0.14), radius: depth.shadowRadius, y: depth.shadowY)
+        }
     }
 }
 
 public extension View {
-    /// Wraps the view in a system-adaptive iOS 27 Liquid Glass card.
+    /// Wraps the view in an Astral V5 surface card.
     func glassCard(
         cornerRadius: CGFloat = AstralTheme.Radius.large,
         depth: GlassDepth = .panel,
@@ -39,16 +124,15 @@ public extension View {
         modifier(GlassCardModifier(cornerRadius: cornerRadius, depth: depth, tint: tint))
     }
 
-    /// Subtle system-adaptive liquid-glass capsule for inline elements (chips, pills).
+    /// Subtle liquid-glass capsule for inline elements (chips, pills).
     func glassPill(tint: Color = .white) -> some View {
-        let effectiveTint = (tint == .white) ? Color.clear : tint.opacity(0.10)
-        return self.liquidCapsule(tint: effectiveTint, interactive: true)
+        self.liquidCapsule(tint: tint.opacity(0.10))
     }
 }
 
 // MARK: - Button styles
 
-/// Secondary button rendered in true system-adaptive iOS 27 Liquid Glass.
+/// Quiet secondary button on a raised Liquid Glass surface.
 public struct GlassButtonStyle: ButtonStyle {
     var tint: Color
     var cornerRadius: CGFloat
@@ -65,13 +149,29 @@ public struct GlassButtonStyle: ButtonStyle {
             .foregroundStyle(AstralTheme.textPrimary)
             .padding(.horizontal, AstralTheme.Spacings.l)
             .padding(.vertical, AstralTheme.Spacings.s)
-            .liquidGlass(in: shape, interactive: true)
+            .background(
+                ZStack {
+                    shape.fill(AstralTheme.surfaceSecondary)
+                    shape.fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.08), Color.clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing))
+                }
+            )
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), AstralTheme.separator],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing),
+                    lineWidth: 1))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.smooth(duration: 0.2), value: configuration.isPressed)
+            .animation(.spring(response: 0.25, dampingFraction: 0.78), value: configuration.isPressed)
     }
 }
 
-/// Primary monochrome action — the ink/paper capsule.
+/// Primary monochrome action — the V5 ink/paper capsule with specular rim.
 public struct AuroraButtonStyle: ButtonStyle {
     public var cornerRadius: CGFloat = AstralTheme.Radius.medium
 
@@ -86,16 +186,25 @@ public struct AuroraButtonStyle: ButtonStyle {
             .foregroundStyle(AstralTheme.actionForeground)
             .padding(.horizontal, AstralTheme.Spacings.l)
             .padding(.vertical, AstralTheme.Spacings.s)
-            .background(shape.fill(AstralTheme.actionFill))
+            .background(
+                ZStack {
+                    shape.fill(AstralTheme.actionFill)
+                    shape.fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.16), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom))
+                }
+            )
+            .overlay(shape.stroke(Color.white.opacity(0.22), lineWidth: 0.8))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .shadow(color: Color.black.opacity(0.16), radius: configuration.isPressed ? 3 : 8, y: 3)
-            .animation(.smooth(duration: 0.2), value: configuration.isPressed)
+            .shadow(color: Color.black.opacity(0.18), radius: configuration.isPressed ? 3 : 9, y: 3)
+            .animation(.spring(response: 0.25, dampingFraction: 0.78), value: configuration.isPressed)
     }
 }
 
 // MARK: - Text field style
 
-/// System-adaptive iOS 27 Liquid Glass text field style.
 public struct GlassTextFieldStyle: TextFieldStyle {
     public init() {}
 
@@ -104,17 +213,33 @@ public struct GlassTextFieldStyle: TextFieldStyle {
         configuration
             .padding(.horizontal, AstralTheme.Spacings.m)
             .padding(.vertical, AstralTheme.Spacings.s + 2)
-            .liquidGlass(in: shape, interactive: true)
+            .background(
+                ZStack {
+                    shape.fill(AstralTheme.surfaceSecondary)
+                    shape.fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.05), Color.clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing))
+                }
+            )
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), AstralTheme.separator],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing),
+                    lineWidth: 1))
             .foregroundStyle(AstralTheme.textPrimary)
     }
 }
 
-// MARK: - Shimmer V5 (System-Adaptive Feathered Capsule Sheen)
+// MARK: - Shimmer V5 (Smooth Feathered Capsule Sheen — Zero Sharp/Pixelated Edges)
 
-/// System-adaptive Liquid Glass Shimmer: uses `Color.primary` with a soft
-/// cosine-feathered capsule gradient and Gaussian blur so the moving sheen
-/// adapts naturally to both Light and Dark mode with zero sharp or pixelated
-/// edges.
+/// V5 Liquid Glass Shimmer: replaces the old rectangular `.clipped()` gradient
+/// (which produced harsh vertical cutoffs and pixelated edges on task rows and
+/// progress bars) with a soft, multi-stop cosine-feathered capsule light wave
+/// masked smoothly to a continuous rounded shape.
 public struct ShimmerModifier: ViewModifier {
     var cornerRadius: CGFloat = 12
     @State private var phase: CGFloat = -1.15
@@ -133,13 +258,13 @@ public struct ShimmerModifier: ViewModifier {
                             .fill(
                                 LinearGradient(
                                     stops: [
-                                        .init(color: Color.primary.opacity(0.0), location: 0.0),
-                                        .init(color: Color.primary.opacity(0.03), location: 0.18),
-                                        .init(color: Color.primary.opacity(0.09), location: 0.42),
-                                        .init(color: Color.primary.opacity(0.14), location: 0.50),
-                                        .init(color: Color.primary.opacity(0.09), location: 0.58),
-                                        .init(color: Color.primary.opacity(0.03), location: 0.82),
-                                        .init(color: Color.primary.opacity(0.0), location: 1.0),
+                                        .init(color: Color.white.opacity(0.0), location: 0.0),
+                                        .init(color: Color.white.opacity(0.03), location: 0.18),
+                                        .init(color: Color.white.opacity(0.11), location: 0.42),
+                                        .init(color: Color.white.opacity(0.16), location: 0.50),
+                                        .init(color: Color.white.opacity(0.11), location: 0.58),
+                                        .init(color: Color.white.opacity(0.03), location: 0.82),
+                                        .init(color: Color.white.opacity(0.0), location: 1.0),
                                     ],
                                     startPoint: .leading,
                                     endPoint: .trailing)
