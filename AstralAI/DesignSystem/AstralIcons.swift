@@ -680,4 +680,9 @@ enum AstralIcons {
     static let fileUp = "file-up"
     static let plug = "plug-zap"
     static let users = "users"
+
+    // V5.0.0 corrected source: referenced by the table copy buttons
+    // (MessageViews / MarkdownView) and the onboarding language row.
+    static let copy = "copy"
+    static let globe = "globe"
 }
