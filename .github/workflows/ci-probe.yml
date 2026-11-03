@@ -1,0 +1,17 @@
+name: ci-probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe
+        run: |
+          echo "PROBE OK — ubuntu runner works"
+          uname -a
+          date
