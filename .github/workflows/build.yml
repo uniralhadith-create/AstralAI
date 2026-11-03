@@ -8,9 +8,11 @@ on:
 
 jobs:
   build:
-    # macos-14 pool is available to free accounts without a payment method;
-    # macos-15/13/latest jobs stay queued forever on this account (verified empirically).
-    runs-on: macos-14
+    # macos-15 ships Xcode 26 (iOS 26 SDK) — REQUIRED for the native iOS 26/27
+    # `glassEffect` Liquid Glass to be compiled into the binary (the old repo
+    # that rendered real Liquid Glass built on macos-15 too). macos-14 only
+    # has Xcode 16.2, which compiles the glass API out and ships the fallback.
+    runs-on: macos-15
     permissions:
       contents: write
     concurrency:
@@ -87,6 +89,14 @@ jobs:
           APP="build/Build/Products/Release-iphoneos/AstralAI.app"
           if [ ! -d "$APP" ]; then
             echo "APP bundle not found at $APP"
+            exit 1
+          fi
+
+          echo "===== NATIVE GLASS CHECK ====="
+          GLASS_COUNT=$(strings "$APP/AstralAI" | grep -c "glassEffect" || true)
+          echo "glassEffect occurrences in binary: $GLASS_COUNT"
+          if [ "$GLASS_COUNT" -eq 0 ]; then
+            echo "::error::Native iOS 26/27 glassEffect is NOT compiled into the binary (wrong Xcode — need Xcode 26+ with the iOS 26 SDK). Liquid Glass would not render on device."
             exit 1
           fi
           rm -rf Payload && mkdir Payload

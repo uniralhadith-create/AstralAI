@@ -28,40 +28,15 @@ extension View {
     ) -> some View {
         #if compiler(>=6.2)
         // Xcode 26+ ships the iOS 26 SDK where the native `glassEffect`
-        // material and `Glass` type exist.
+        // material and `Glass` type exist. This is the EXACT V4.7 recipe the
+        // users loved: the real system Liquid Glass, nothing hand-drawn on
+        // top — it bends and tints the content behind it exactly like the
+        // platform's own chrome.
         if #available(iOS 26.0, *) {
             if interactive {
-                self
-                    .glassEffect(Glass.regular.tint(tint).interactive(), in: shape)
-                    .overlay(
-                        shape.stroke(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: Color.white.opacity(0.42), location: 0.0),
-                                    .init(color: Color.white.opacity(0.14), location: 0.38),
-                                    .init(color: Color.white.opacity(0.04), location: 0.72),
-                                    .init(color: Color.white.opacity(0.18), location: 1.0),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing),
-                            lineWidth: 0.9)
-                        .allowsHitTesting(false))
+                self.glassEffect(Glass.regular.tint(tint).interactive(), in: shape)
             } else {
-                self
-                    .glassEffect(Glass.regular.tint(tint), in: shape)
-                    .overlay(
-                        shape.stroke(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: Color.white.opacity(0.34), location: 0.0),
-                                    .init(color: Color.white.opacity(0.10), location: 0.45),
-                                    .init(color: Color.white.opacity(0.03), location: 0.75),
-                                    .init(color: Color.white.opacity(0.14), location: 1.0),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing),
-                            lineWidth: 0.75)
-                        .allowsHitTesting(false))
+                self.glassEffect(Glass.regular.tint(tint), in: shape)
             }
         } else {
             liquidGlassFallback(in: shape, tint: tint, interactive: interactive)
