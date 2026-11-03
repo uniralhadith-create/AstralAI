@@ -93,7 +93,10 @@ jobs:
           fi
 
           echo "===== NATIVE GLASS CHECK ====="
-          GLASS_COUNT=$(strings "$APP/AstralAI" | grep -c "glassEffect" || true)
+          # NOTE: BSD `strings` on macOS misses Swift metadata — grep the
+          # Mach-O directly with -a (binary-as-text), identical semantics on
+          # GNU and BSD grep.
+          GLASS_COUNT=$(LC_ALL=C grep -a -c "glassEffect" "$APP/AstralAI" || true)
           echo "glassEffect occurrences in binary: $GLASS_COUNT"
           if [ "$GLASS_COUNT" -eq 0 ]; then
             echo "::error::Native iOS 26/27 glassEffect is NOT compiled into the binary (wrong Xcode — need Xcode 26+ with the iOS 26 SDK). Liquid Glass would not render on device."
@@ -126,6 +129,14 @@ jobs:
           cp AstralAI-V5.0.0-adhoc.ipa AstralAI-adhoc.ipa
           ls -lh *.ipa
 
+          echo "===== NATIVE GLASS CHECK (ad-hoc path) ====="
+          GLASS_COUNT=$(LC_ALL=C grep -a -c "glassEffect" "$APP/AstralAI" || true)
+          echo "glassEffect occurrences in binary: $GLASS_COUNT"
+          if [ "$GLASS_COUNT" -eq 0 ]; then
+            echo "::error::Native iOS 26/27 glassEffect is NOT compiled into the ad-hoc binary (wrong Xcode — need Xcode 26+ with the iOS 26 SDK)."
+            exit 1
+          fi
+
       - name: Upload IPA artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -136,8 +147,10 @@ jobs:
           if-no-files-found: warn
 
       - name: Attach IPA to GitHub Release (keep existing notes)
-        if: success() && startsWith(github.ref, 'refs/tags/')
+        if: always() && startsWith(github.ref, 'refs/tags/')
         run: |
+          # Skip silently when both the unsigned and ad-hoc builds failed.
+          ls *.ipa >/dev/null 2>&1 || { echo "No IPA produced — skipping release upload"; exit 0; }
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
