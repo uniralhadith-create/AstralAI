@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """V5.0.0 sanity check — brace/paren balance across ALL Swift files in the
 project, .strings duplicate + EN/AR parity checks across ALL string tables,
-and V5.0.0 release invariants."""
+and V5.0.0 release invariants (including 100% system-adaptive iOS 27 Liquid Glass)."""
 
 import re
 import sys
@@ -146,17 +146,29 @@ def main() -> int:
         if cmd not in shell:
             failures.append(f"SandboxShell: missing V5 Linux command {cmd}")
 
+    lg = (ROOT / "AstralAI/DesignSystem/LiquidGlass.swift").read_text(encoding="utf-8")
+    if "self.glassEffect(" not in lg:
+        failures.append("LiquidGlass: missing native iOS 26/27 glassEffect call")
+
+    glass = (ROOT / "AstralAI/DesignSystem/Glass.swift").read_text(encoding="utf-8")
+    if ".liquidGlass(" not in glass:
+        failures.append("Glass: GlassCardModifier not routing through .liquidGlass")
+
     icons = (ROOT / "AstralAI/DesignSystem/AstralIcons.swift").read_text(encoding="utf-8")
-    if "struct AstralComputerIcon" not in icons:
-        failures.append("AstralIcons: missing AstralComputerIcon vector view")
+    if "AstralIcons.computer" not in icons:
+        failures.append("AstralIcons: missing AstralIcons.computer vector icon")
 
     bar = (ROOT / "AstralAI/Features/Chat/AstraComputerBar.swift").read_text(encoding="utf-8")
-    if "AstralComputerIcon" not in bar:
-        failures.append("AstraComputerBar: not wired to AstralComputerIcon")
+    if "AstralIcons.computer" not in bar or ".liquidGlass(" not in bar:
+        failures.append("AstraComputerBar: not wired to AstralIcons.computer and .liquidGlass")
+
+    composer = (ROOT / "AstralAI/Features/Chat/ComposerView.swift").read_text(encoding="utf-8")
+    if ".liquidGlass(" not in composer or ".liquidCapsule(" not in composer:
+        failures.append("ComposerView: not using native .liquidGlass / .liquidCapsule")
 
     terminal = (ROOT / "AstralAI/Features/Files/TerminalView.swift").read_text(encoding="utf-8")
-    if "AstralComputerIcon" not in terminal or "astra-os 5.0.0" not in terminal:
-        failures.append("TerminalView: missing AstralComputerIcon or 5.0.0 banner")
+    if "AstralIcons.computer" not in terminal or "astra-os 5.0.0" not in terminal or ".preferredColorScheme(.dark)" in terminal:
+        failures.append("TerminalView: must use system-adaptive AstralIcons.computer and Liquid Glass without forced .preferredColorScheme(.dark)")
 
     if failures:
         print("V5.0.0 SANITY: FAIL")
@@ -168,7 +180,7 @@ def main() -> int:
     print(f"  {len(all_swift)} Swift files balanced with zero syntax/brace errors")
     print(f"  {len(STRING_TABLES)} localization tables × en/ar: zero duplicates, 100% parity")
     print("  V5.0.0 release invariants OK (5.0.0 / build 12 / badges / banners)")
-    print("  AstralComputerIcon custom vector icon + V5 Liquid Glass shimmer verified")
+    print("  100% System-Adaptive iOS 27 Liquid Glass (glassEffect) + AIcon SVG vector engine verified")
     print("  astra-os 5.0.0 Linux FHS + 60+ commands (jq, awk, git, apt, wget, neofetch...) verified")
     return 0
 

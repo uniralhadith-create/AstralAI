@@ -1,18 +1,13 @@
 import SwiftUI
 
-// MARK: - Astra Computer bar (V5.0.0 — iOS 27 Liquid Glass + Custom Vector Computer)
+// MARK: - Astra Computer bar (V5.0.0 — Pure System-Adaptive iOS 27 Liquid Glass)
 //
-// The Manus-style computer footer: a layered Liquid Glass V5 bar that sits
-// ABOVE the message composer. The chat stays a clean conversation of
-// steps and answers; everything the machine executes streams HERE —
-// the current command, page or file, live, with one tap opening the
-// full Astra Computer (terminal · browser · files).
-//
-// V5.0.0 upgrades:
-// - Custom `AstralComputerIcon` vector workstation icon (Studio Display
-//   bezel, live terminal `>_` prompt, and sculpted stand)
-// - RTL-aware chevron direction
-// - Smooth feathered capsule shimmer when the machine is actively running
+// The Manus-style computer footer: a native iOS 27 Liquid Glass bar that sits
+// ABOVE the message composer. Everything — the outer bar, the leading
+// computer icon badge, and the local/cloud mode capsule — uses pure
+// system-adaptive `.liquidGlass(..., interactive: true)` and system-adaptive
+// `AIcon(AstralIcons.computer)` so it adapts seamlessly to Light & Dark mode
+// and iOS 27 system materials.
 struct AstraComputerBar: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var language: LocalizationManager
@@ -41,61 +36,40 @@ struct AstraComputerBar: View {
             .padding(.horizontal, 13)
             .padding(.vertical, 10)
             .liquidGlass(
-                in: RoundedRectangle(cornerRadius: 19, style: .continuous),
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous),
                 tint: isWorking
                     ? AstralTheme.orbGreen.opacity(0.08)
-                    : AstralTheme.actionFill.opacity(0.07),
+                    : .clear,
                 interactive: true)
-            .shimmer(active: isWorking, cornerRadius: 19)
-            .contentShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+            .shimmer(active: isWorking, cornerRadius: 20)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(PressableOrbStyle())
         .accessibilityLabel(Text(L("computer.barTitle", "Chat")))
-        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: activity.entries.count)
-        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: cloud.status)
-        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: mode.mode)
+        .animation(.smooth(duration: 0.3), value: activity.entries.count)
+        .animation(.smooth(duration: 0.3), value: cloud.status)
+        .animation(.smooth(duration: 0.3), value: mode.mode)
     }
 
-    // MARK: Leading glyph
+    // MARK: Leading glyph (System-Adaptive iOS 27 Liquid Glass Tile + Vector Icon)
 
-    /// The machine itself: the custom V5 Studio Display computer vector icon
-    /// in a refractive glass tile, with a live activity orb when the agent is
-    /// working.
+    /// The machine itself: the vector computer icon inside a native iOS 27
+    /// Liquid Glass tile that adapts automatically to the system appearance,
+    /// with a live activity dot when working.
     private var leadingGlyph: some View {
         ZStack(alignment: .bottomTrailing) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                isWorking
-                                    ? AstralTheme.orbGreen.opacity(0.24)
-                                    : AstralTheme.accent.opacity(0.22),
-                                isWorking
-                                    ? AstralTheme.orbGreen.opacity(0.08)
-                                    : AstralTheme.accent.opacity(0.08),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.32),
-                                        Color.white.opacity(0.06),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing),
-                                lineWidth: 0.8))
-
-                AstralComputerIcon(
-                    size: 19,
-                    color: AstralTheme.textPrimary,
-                    accentColor: AstralTheme.orbGreen,
-                    isActive: isWorking)
-            }
-            .frame(width: 36, height: 36)
+            AIcon(
+                AstralIcons.computer,
+                size: 17.5,
+                strokeWidth: 2.0,
+                color: isWorking ? AstralTheme.orbGreen : AstralTheme.textPrimary)
+                .frame(width: 34, height: 34)
+                .liquidGlass(
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous),
+                    tint: isWorking
+                        ? AstralTheme.orbGreen.opacity(0.14)
+                        : AstralTheme.actionFill.opacity(0.06),
+                    interactive: true)
 
             if isWorking {
                 Circle()
@@ -116,21 +90,10 @@ struct AstraComputerBar: View {
 
     private var statusStack: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Text(L("computer.barTitle", "Chat"))
-                    .font(AstralTheme.headline(13.5))
-                    .foregroundStyle(AstralTheme.textPrimary)
-                    .lineLimit(1)
-
-                Text("V5")
-                    .font(AstralTheme.mono(8.5).weight(.bold))
-                    .foregroundStyle(AstralTheme.orbGreen)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(AstralTheme.orbGreen.opacity(0.14)))
-            }
+            Text(L("computer.barTitle", "Chat"))
+                .font(AstralTheme.headline(13.5))
+                .foregroundStyle(AstralTheme.textPrimary)
+                .lineLimit(1)
 
             Text(statusDetail)
                 .font(AstralTheme.mono(10.5))
@@ -181,7 +144,7 @@ struct AstraComputerBar: View {
         return activity.entries.last?.status == .running
     }
 
-    // MARK: Mode chip
+    // MARK: Mode chip (System-Adaptive Liquid Capsule)
 
     private var modeChip: some View {
         HStack(spacing: 4) {
@@ -198,7 +161,8 @@ struct AstraComputerBar: View {
         .padding(.vertical, 4)
         .liquidCapsule(
             tint: mode.prefersCloud
-                ? AstralTheme.accent.opacity(0.14)
-                : AstralTheme.textPrimary.opacity(0.06))
+                ? AstralTheme.accent.opacity(0.12)
+                : .clear,
+            interactive: true)
     }
 }

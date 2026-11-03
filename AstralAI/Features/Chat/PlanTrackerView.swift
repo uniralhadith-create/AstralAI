@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Plan tracker (V5 iOS 27 Liquid Glass)
+// MARK: - Plan tracker (V5 System-Adaptive iOS 27 Liquid Glass)
 
 /// Collapsible execution-plan card pinned above the conversation. Shows the
 /// overall progress bar plus one status row per step with smooth feathered
@@ -32,7 +32,7 @@ struct PlanTrackerView: View {
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3.5)
                             .liquidCapsule(
-                                tint: AstralTheme.actionFill.opacity(0.16),
+                                tint: AstralTheme.actionFill.opacity(0.14),
                                 interactive: true)
 
                         SectionHeader(icon: "checklist", "chat.plan", table: "Chat")
@@ -67,7 +67,6 @@ struct PlanTrackerView: View {
         .padding(AstralTheme.Spacings.m)
         .liquidGlass(
             in: RoundedRectangle(cornerRadius: 22, style: .continuous),
-            tint: AstralTheme.actionFill.opacity(0.06),
             interactive: true)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
@@ -104,9 +103,13 @@ struct PlanTrackerView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(activeRow ? AstralTheme.actionFill.opacity(0.06) : Color.clear))
+        .background {
+            if activeRow {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill( Color.clear )
+                    .liquidGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
         .shimmer(active: activeRow, cornerRadius: 12)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .animation(.spring(response: 0.34, dampingFraction: 0.84), value: step.status)

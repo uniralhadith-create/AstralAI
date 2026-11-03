@@ -2,19 +2,13 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
-// MARK: - Composer
+// MARK: - Composer (V5.0.0 — Pure System-Adaptive iOS 27 Liquid Glass)
 
-/// The V3.1 Liquid Glass composer: one roomy glass surface with
-/// - an attachment strip (photo thumbnails + file chips, removable),
-/// - the auto-growing input (17pt, up to 7 lines, 56pt minimum height),
-/// - a control row of liquid-capsule chips: photo picker, plus menu,
-///   agent-mode chip, skills chip — with the circular send control at the
-///   trailing end of that same row, level with the chips,
-/// - the "/" slash skill overlay above the composer.
-///
-/// Typing "/" as the first character reveals the skill picker; tapping a
-/// skill arms it (enables the skill, clears the "/query" text and shows a
-/// dismissible chip).
+/// The V5 Liquid Glass composer: every element — the main composer bar,
+/// the photo and plus controls, the agent-mode and skills capsules, the
+/// send/stop button, and the "/" slash skill overlay — uses native
+/// system-adaptive iOS 26/27 `liquidGlass` so it blends and refracts with
+/// the system appearance.
 struct ComposerView: View {
     let isStreaming: Bool
     var onSend: (String, [MessageImage], [MessageAttachment]) -> Void
@@ -26,21 +20,15 @@ struct ComposerView: View {
     @FocusState private var focused: Bool
 
     @State private var draft = ""
-    /// Images staged for the next message.
     @State private var pendingImages: [MessageImage] = []
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var importingImages = false
-    /// Files staged for the next message (extracted text travels along).
     @State private var pendingAttachments: [MessageAttachment] = []
     @State private var showingFilePicker = false
 
-    /// Skill armed through the "/" overlay — chip label + id used to
-    /// disable it again when the chip is dismissed.
     @State private var armedSkillName: String?
     @State private var armedSkillID: UUID?
 
-    /// The V3.5 action panel (replaces the Menu-based plus menu, whose
-    /// actions could be silently swallowed while the menu dismissed).
     @State private var showingActionPanel = false
 
     @AppStorage("astral.agentMode") private var agentMode = false
@@ -59,8 +47,6 @@ struct ComposerView: View {
             && !importingImages
     }
 
-    /// The query after a leading "/" — nil when the draft doesn't start
-    /// with a slash (which also hides the overlay).
     private var slashQuery: String? {
         guard draft.hasPrefix("/") else { return nil }
         return String(draft.dropFirst())
@@ -95,7 +81,6 @@ struct ComposerView: View {
                 },
                 onAttachFile: {
                     showingActionPanel = false
-                    // Sheet-on-sheet: give the panel a beat to dismiss.
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                         showingFilePicker = true
                     }
@@ -116,7 +101,7 @@ struct ComposerView: View {
         }
     }
 
-    // MARK: Composer surface
+    // MARK: Composer surface (Pure System-Adaptive iOS 27 Liquid Glass)
 
     private var composerSurface: some View {
         VStack(spacing: 0) {
@@ -124,20 +109,12 @@ struct ComposerView: View {
                 attachmentStrip
             }
             inputRow
-            Divider()
-                .overlay(AstralTheme.separator)
-                .padding(.horizontal, 14)
             controlRow
         }
         .liquidGlass(
-            in: RoundedRectangle(cornerRadius: 30, style: .continuous),
-            tint: focused ? AstralTheme.actionFill.opacity(0.06) : .clear,
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous),
+            tint: focused ? AstralTheme.actionFill.opacity(0.04) : .clear,
             interactive: true)
-        .overlay(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(
-                    focused ? AstralTheme.accent.opacity(0.45) : Color.clear,
-                    lineWidth: 1.5))
         .animation(.smooth(duration: 0.25), value: pendingImages.isEmpty)
         .animation(.smooth(duration: 0.25), value: pendingAttachments.isEmpty)
         .animation(.smooth(duration: 0.2), value: focused)
@@ -145,7 +122,6 @@ struct ComposerView: View {
 
     // MARK: Attachment strip
 
-    /// Thumbnails of staged images and chips of staged files, all removable.
     private var attachmentStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -168,9 +144,7 @@ struct ComposerView: View {
                 if importingImages {
                     ProgressView()
                         .frame(width: 64, height: 64)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(AstralTheme.surfaceSecondary))
+                        .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
             .padding(.horizontal, 14)
@@ -193,16 +167,15 @@ struct ComposerView: View {
             .submitLabel(.send)
             .onSubmit { sendDraft() }
             .padding(.horizontal, 16)
-            .padding(.vertical, 15)
-            .frame(minHeight: 56, alignment: .bottom)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+            .frame(minHeight: 50, alignment: .bottom)
     }
 
     // MARK: Control row
 
-    /// The action row: chips on the leading side, the send/stop control at
-    /// the trailing side — all vertically centered, exactly level.
     private var controlRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             if let armedSkillName {
                 armedSkillChip(named: armedSkillName)
             }
@@ -222,21 +195,27 @@ struct ComposerView: View {
             sendControl
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
     }
 
-    // MARK: Send / stop control
+    // MARK: Send / stop control (System-Adaptive Liquid Glass Orb)
 
     @ViewBuilder
     private var sendControl: some View {
         Group {
             if isStreaming {
                 Button(action: onStop) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(AstralTheme.actionForeground)
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(AstralTheme.actionFill.opacity(0.55)))
+                    AIcon(
+                        AstralIcons.stop,
+                        size: 14,
+                        strokeWidth: 2.5,
+                        color: AstralTheme.textPrimary)
+                        .frame(width: 36, height: 36)
+                        .liquidGlass(
+                            in: Circle(),
+                            tint: AstralTheme.danger.opacity(0.18),
+                            interactive: true)
                 }
                 .transition(.scale.combined(with: .opacity))
                 .accessibilityLabel(Text(L("common.stop", "Shared")))
@@ -244,14 +223,22 @@ struct ComposerView: View {
                 Button(action: sendDraft) {
                     AIcon(
                         AstralIcons.arrowUp,
-                        size: 17,
-                        strokeWidth: 2.6,
-                        color: AstralTheme.actionForeground)
-                        .frame(width: 38, height: 38)
-                        .background(Circle().fill(AstralTheme.actionFill))
+                        size: 16.5,
+                        strokeWidth: 2.5,
+                        color: canSend ? AstralTheme.actionForeground : AstralTheme.textSecondary)
+                        .frame(width: 36, height: 36)
+                        .background {
+                            if canSend {
+                                Circle().fill(AstralTheme.actionFill)
+                            }
+                        }
+                        .liquidGlass(
+                            in: Circle(),
+                            tint: canSend ? AstralTheme.actionFill.opacity(0.2) : .clear,
+                            interactive: true)
                 }
                 .disabled(!canSend)
-                .opacity(canSend ? 1 : 0.4)
+                .opacity(canSend ? 1 : 0.55)
                 .transition(.scale.combined(with: .opacity))
                 .accessibilityLabel(Text(L("chat.send", "Chat")))
             }
@@ -261,10 +248,8 @@ struct ComposerView: View {
         .animation(.smooth(duration: 0.2), value: canSend)
     }
 
-    // MARK: Chips
+    // MARK: Chips (All Native System-Adaptive Liquid Glass)
 
-    /// The "skill armed" capsule: shows the skill armed via the "/" overlay,
-    /// dismissible with an xmark that also disables the skill again.
     private func armedSkillChip(named name: String) -> some View {
         Button(action: disarmSkill) {
             HStack(spacing: 5) {
@@ -284,8 +269,8 @@ struct ComposerView: View {
                     color: AstralTheme.accent.opacity(0.7))
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .liquidCapsule(tint: AstralTheme.accent.opacity(0.12))
+            .padding(.vertical, 7)
+            .liquidCapsule(tint: AstralTheme.accent.opacity(0.12), interactive: true)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -293,8 +278,6 @@ struct ComposerView: View {
         .accessibilityValue(Text(name))
     }
 
-    /// The V3 image attach chip (PhotosPicker — no library permission
-    /// needed, the system picker runs out of process).
     private var photoPicker: some View {
         PhotosPicker(
             selection: $photoItems,
@@ -302,11 +285,12 @@ struct ComposerView: View {
             matching: .images) {
             AIcon(
                 AstralIcons.image,
-                size: 17,
-                strokeWidth: 2,
+                size: 15.5,
+                strokeWidth: 2.0,
                 color: AstralTheme.textSecondary)
-                .frame(width: 30, height: 30)
-                .contentShape(Rectangle())
+                .frame(width: 32, height: 32)
+                .liquidGlass(in: Circle(), interactive: true)
+                .contentShape(Circle())
         }
         .disabled(isStreaming || pendingImages.count >= maxImages)
         .opacity(pendingImages.count >= maxImages ? 0.35 : 1)
@@ -316,43 +300,29 @@ struct ComposerView: View {
         }
     }
 
-    /// The V3.5 plus control — a plain button opening the action panel
-    /// (Menus can silently drop actions during dismissal on iOS 26;
-    /// a presented sheet never does).
     private var plusMenu: some View {
         Button {
             showingActionPanel = true
         } label: {
             AIcon(
                 AstralIcons.plus,
-                size: 17,
+                size: 15.5,
                 strokeWidth: 2.2,
                 color: AstralTheme.textSecondary)
-                .frame(width: 30, height: 30)
-                .contentShape(Rectangle())
+                .frame(width: 32, height: 32)
+                .liquidGlass(in: Circle(), interactive: true)
+                .contentShape(Circle())
         }
         .buttonStyle(PressableIconButtonStyle())
         .accessibilityLabel(Text(L("chat.composer.menu", "Chat")))
     }
 
-    /// Chat ↔ Agent mode switch. Chat streams a direct answer; Agent runs
-    /// the full plan + parallel sub-agent pipeline. The label swaps without
-    /// a layout animation — animating the width change made the chip glitch
-    /// in RTL Arabic (text overlapping the icon mid-transition).
-    ///
-    /// V4.6.0: the chat glyph is the true Lucide `message-circle` speech
-    /// bubble (the SVG arc-correction fix makes it render exactly like the
-    /// web original), and it sits in an 18pt box with a soft capsule tint
-    /// in both states — the bubble now reads as a real message mark that
-    /// stays inside the button's border instead of crowding it.
     private var agentModeChip: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             agentMode.toggle()
         } label: {
             HStack(spacing: 5) {
-                // V4.7.0: the glyph swap is a true crossfade with a soft
-                // scale — the chip feels alive instead of flickering.
                 ZStack {
                     if agentMode {
                         AIcon(
@@ -383,8 +353,8 @@ struct ComposerView: View {
             .padding(.vertical, 7)
             .liquidCapsule(
                 tint: agentMode
-                    ? AstralTheme.accent.opacity(0.15)
-                    : AstralTheme.textPrimary.opacity(0.06),
+                    ? AstralTheme.accent.opacity(0.14)
+                    : .clear,
                 interactive: true)
             .contentShape(Capsule())
             .fixedSize()
@@ -396,7 +366,6 @@ struct ComposerView: View {
             : L("chat.composer.chatMode", "Chat")))
     }
 
-    /// Live chip showing enabled skills; tapping opens a quick toggle menu.
     @ViewBuilder
     private var skillsChip: some View {
         let enabled = skillStore.enabledSkills
@@ -440,7 +409,7 @@ struct ComposerView: View {
             .foregroundStyle(
                 enabled.isEmpty ? AstralTheme.textSecondary : AstralTheme.accent)
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 7)
             .liquidCapsule(
                 tint: enabled.isEmpty ? .clear : AstralTheme.accent.opacity(0.12),
                 interactive: true)
@@ -451,9 +420,6 @@ struct ComposerView: View {
 
     // MARK: Slash overlay
 
-    /// Liquid Glass skill picker shown above the composer while the draft
-    /// starts with "/". Empty query lists every installed skill (capped);
-    /// otherwise skills whose name or slug contains the query.
     private var slashMatches: [Skill] {
         let query = (slashQuery ?? "").lowercased()
         let installed = skillStore.installed
@@ -494,10 +460,13 @@ struct ComposerView: View {
             armSkill(skill)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: skill.icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(AstralTheme.textSecondary)
+                AIcon(
+                    AstralIcons.puzzle,
+                    size: 14,
+                    strokeWidth: 2.1,
+                    color: AstralTheme.textSecondary)
                     .frame(width: 28, height: 28)
+                    .liquidGlass(in: Circle(), interactive: true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(skill.displayName)
@@ -524,8 +493,6 @@ struct ComposerView: View {
 
     // MARK: Photo import
 
-    /// Loads picked photos through the media store (normalization,
-    /// downscale, JPEG) and stages them for the next message.
     private func importPhotos(_ items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
         photoItems = []
@@ -555,7 +522,6 @@ struct ComposerView: View {
 
     // MARK: File import
 
-    /// Extracts text from picked files and stages them as attachments.
     private func importFiles(_ urls: [URL]) {
         let remaining = maxFiles - pendingAttachments.count
         guard remaining > 0 else { return }
@@ -573,8 +539,6 @@ struct ComposerView: View {
 
     // MARK: Actions
 
-    /// Arms a skill picked from the "/" overlay: enables it, replaces any
-    /// previously armed skill, clears the slash draft and shows the chip.
     private func armSkill(_ skill: Skill) {
         if let previous = armedSkillID, previous != skill.id {
             skillStore.setEnabled(previous, false)
@@ -587,7 +551,6 @@ struct ComposerView: View {
         skillStore.setEnabled(skill.id, true)
     }
 
-    /// Dismisses the armed-skill chip and disables the skill again.
     private func disarmSkill() {
         if let id = armedSkillID {
             skillStore.setEnabled(id, false)
@@ -607,8 +570,6 @@ struct ComposerView: View {
         withAnimation(.smooth(duration: 0.2)) {
             pendingImages = []
             pendingAttachments = []
-            // The chip is transient; the skill itself stays enabled so the
-            // outgoing turn picks it up when its prompt is built.
             armedSkillName = nil
             armedSkillID = nil
         }
@@ -616,11 +577,8 @@ struct ComposerView: View {
     }
 }
 
-// MARK: - Action panel
+// MARK: - Action panel (System-Adaptive Liquid Glass)
 
-/// The V3.5 composer action panel — a Liquid Glass bottom sheet that
-/// replaces the old plus `Menu`. Presented as a real sheet, so every
-/// action fires reliably (no menu-dismissal race, no swallowed taps).
 struct ComposerActionPanel: View {
     var onNewChat: () -> Void
     var onAttachFile: () -> Void
@@ -650,7 +608,7 @@ struct ComposerActionPanel: View {
                     action: onAttachFile)
                 actionTile(
                     title: L("sandbox.terminal", "Chat"),
-                    icon: AstralIcons.terminal,
+                    icon: AstralIcons.computer,
                     caption: shell.cwd,
                     action: onOpenTerminal)
                 actionTile(
@@ -680,11 +638,11 @@ struct ComposerActionPanel: View {
                         .foregroundStyle(AstralTheme.textPrimary)
                     Spacer(minLength: 0)
                     AIcon(
-                        language.layoutDirection == .rightToLeft
-                            ? "arrow-left" : AstralIcons.chevronForward,
+                        AstralIcons.chevronForward,
                         size: 13,
                         strokeWidth: 2.2,
                         color: AstralTheme.textSecondary)
+                        .scaleEffect(x: language.layoutDirection == .rightToLeft ? -1 : 1, y: 1)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
@@ -709,7 +667,7 @@ struct ComposerActionPanel: View {
             Text(L("chat.composer.menu", "Chat"))
                 .font(AstralTheme.headline(15))
                 .foregroundStyle(AstralTheme.textPrimary)
-            Text("astra-os · /home/astral")
+            Text("astra-os 5.0 · /home/astral")
                 .font(AstralTheme.mono(10.5))
                 .foregroundStyle(AstralTheme.textSecondary)
         }
@@ -726,12 +684,11 @@ struct ComposerActionPanel: View {
             VStack(spacing: 7) {
                 AIcon(
                     icon,
-                    size: 18,
-                    strokeWidth: 2,
+                    size: 17,
+                    strokeWidth: 2.0,
                     color: AstralTheme.textPrimary)
                     .frame(width: 34, height: 34)
-                    .background(
-                        Circle().fill(AstralTheme.actionFill.opacity(0.08)))
+                    .liquidGlass(in: Circle(), interactive: true)
 
                 Text(title)
                     .font(AstralTheme.headline(12))
@@ -759,17 +716,17 @@ struct ComposerActionPanel: View {
 
 // MARK: - File attachment chip
 
-/// One staged file: document icon, name, remove button — a capsule chip
-/// sized to match the photo thumbnails' height.
 struct FileAttachmentChip: View {
     let name: String
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(AstralTheme.textPrimary)
+            AIcon(
+                AstralIcons.file,
+                size: 13,
+                strokeWidth: 2.1,
+                color: AstralTheme.textPrimary)
 
             Text(name)
                 .font(AstralTheme.headline(12))
@@ -777,80 +734,69 @@ struct FileAttachmentChip: View {
                 .lineLimit(1)
 
             Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(AstralTheme.textSecondary)
+                AIcon(
+                    AstralIcons.close,
+                    size: 11,
+                    strokeWidth: 2.4,
+                    color: AstralTheme.textSecondary)
+                    .frame(width: 18, height: 18)
             }
             .accessibilityLabel(Text(L("chat.attachments.remove", "Chat")))
         }
         .padding(.horizontal, 12)
         .frame(height: 36)
-        .liquidCapsule()
-        .overlay(Capsule().stroke(AstralTheme.separator, lineWidth: 1))
-    }
-
-    private var icon: String {
-        let ext = (name as NSString).pathExtension.lowercased()
-        switch ext {
-        case "pdf": return "doc.richtext"
-        case "json", "plist": return "curlybraces.square"
-        case "csv", "tsv", "xlsx": return "tablecells"
-        case "md", "markdown", "txt", "rtf": return "doc.plaintext"
-        case "zip": return "doc.zipper"
-        default: return "doc"
-        }
+        .liquidCapsule(interactive: true)
     }
 }
 
-// MARK: - Attachment thumbnail
+// MARK: - Thumbnail
 
-/// One staged image: rounded thumbnail plus a remove button.
-private struct AttachmentThumbnail: View {
+struct AttachmentThumbnail: View {
     let image: MessageImage
     let onRemove: () -> Void
 
-    @State private var thumbnail: UIImage?
+    @State private var ui: UIImage?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Group {
-                if let thumbnail {
-                    Image(uiImage: thumbnail)
+                if let ui {
+                    Image(uiImage: ui)
                         .resizable()
                         .scaledToFill()
                 } else {
                     Rectangle()
-                        .fill(AstralTheme.surfaceSecondary)
-                        .shimmer()
+                        .fill(AstralTheme.separator)
+                        .shimmer(cornerRadius: 14)
                 }
             }
             .frame(width: 64, height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(AstralTheme.separator, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(AstralTheme.textPrimary)
-                    .background(Circle().fill(AstralTheme.surface))
+                AIcon(
+                    AstralIcons.close,
+                    size: 10,
+                    strokeWidth: 2.6,
+                    color: AstralTheme.textPrimary)
+                    .frame(width: 22, height: 22)
+                    .liquidGlass(in: Circle(), interactive: true)
             }
-            .offset(x: 6, y: -6)
+            .offset(x: 4, y: -4)
+            .accessibilityLabel(Text(L("chat.attachments.remove", "Chat")))
         }
         .task {
-            thumbnail = MediaStore.uiImage(image, thumbnailMax: 160)
+            ui = MediaStore.uiImage(image, thumbnailMax: 160)
         }
     }
 }
 
-// MARK: - Press feedback
+// MARK: - Button press feedback
 
-/// Small scale-down press feedback for icon-sized buttons.
-private struct PressableIconButtonStyle: ButtonStyle {
+struct PressableIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
-            .animation(.smooth(duration: 0.18), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.72), value: configuration.isPressed)
     }
 }

@@ -1,25 +1,26 @@
 import SwiftUI
 
-// MARK: - Liquid Glass V5 (iOS 27 Refractive Specular Design Language)
+// MARK: - Liquid Glass V5 (Pure System-Adaptive iOS 26/27 Design Language)
 
-/// V5 — The iOS 27 Liquid Glass design language (monochrome & prismatic).
+/// V5 — The native iOS 26/27 Liquid Glass design language.
 ///
-/// On iOS 26+ these helpers combine the system `glassEffect` material with
-/// V5's multi-layered refractive rim, inner caustic highlight, and ambient
-/// depth shadow so floating surfaces bend light with crystal clarity.
-/// On iOS 17–25 they deliver the exact same optical recipe using ultra-thin
-/// material, a subtle surface wash, a dual-angle specular stroke, and a
-/// dual-radius elevation shadow.
+/// On iOS 26+ these helpers call the real system `glassEffect(Glass.regular...)`
+/// material directly — with ZERO artificial overlays or hand-drawn borders on
+/// top — so every header, composer, bar, card, and orb bends, refracts, and
+/// adapts to light/dark mode and background content exactly like native iOS 27
+/// system chrome.
+///
+/// On iOS 17–25 they fall back to a clean system `.ultraThinMaterial` recipe
+/// that adapts automatically to the system's `colorScheme`.
 extension View {
-    /// True iOS 27 Liquid Glass V5 with multi-layered specular rim and inner
-    /// caustic reflection.
+    /// True native system Liquid Glass on iOS 26+, adaptive `.ultraThinMaterial`
+    /// fallback on iOS 17–25.
     ///
     /// - Parameters:
     ///   - shape: the shape of the glass surface.
-    ///   - tint: an optional tint blended into the glass (monochrome ink by
-    ///     default — pass `AstralTheme.actionFill.opacity(x)` for subtlety).
-    ///   - interactive: gives the surface touch-responsive "living" glass
-    ///     behavior and enhanced specular rim.
+    ///   - tint: an optional tint blended into the system glass.
+    ///   - interactive: on iOS 26+, gives the surface the system's native
+    ///     touch-responsive "living" glass refraction.
     @ViewBuilder
     func liquidGlass(
         in shape: some Shape,
@@ -28,119 +29,73 @@ extension View {
     ) -> some View {
         #if compiler(>=6.2)
         // Xcode 26+ ships the iOS 26 SDK where the native `glassEffect`
-        // material and `Glass` type exist.
+        // material and `Glass` type exist — use the real system glass.
         if #available(iOS 26.0, *) {
             if interactive {
-                self
-                    .glassEffect(Glass.regular.tint(tint).interactive(), in: shape)
-                    .overlay(
-                        shape.stroke(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: Color.white.opacity(0.42), location: 0.0),
-                                    .init(color: Color.white.opacity(0.14), location: 0.38),
-                                    .init(color: Color.white.opacity(0.04), location: 0.72),
-                                    .init(color: Color.white.opacity(0.18), location: 1.0),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing),
-                            lineWidth: 0.9)
-                        .allowsHitTesting(false))
+                self.glassEffect(Glass.regular.tint(tint).interactive(), in: shape)
             } else {
-                self
-                    .glassEffect(Glass.regular.tint(tint), in: shape)
-                    .overlay(
-                        shape.stroke(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: Color.white.opacity(0.34), location: 0.0),
-                                    .init(color: Color.white.opacity(0.10), location: 0.45),
-                                    .init(color: Color.white.opacity(0.03), location: 0.75),
-                                    .init(color: Color.white.opacity(0.14), location: 1.0),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing),
-                            lineWidth: 0.75)
-                        .allowsHitTesting(false))
+                self.glassEffect(Glass.regular.tint(tint), in: shape)
             }
         } else {
-            liquidGlassFallback(in: shape, tint: tint, interactive: interactive)
+            liquidGlassFallback(in: shape, tint: tint)
         }
         #else
         // Xcode 16 / iOS 18 SDK: the `Glass` API does not exist yet, so the
-        // V5 optical recipe is drawn by hand — identical to what iOS 17-25
-        // devices render at runtime.
-        liquidGlassFallback(in: shape, tint: tint, interactive: interactive)
+        // adaptive fallback renders instead — identical to what iOS 17–25
+        // devices see at runtime.
+        liquidGlassFallback(in: shape, tint: tint)
         #endif
     }
 
-    /// The hand-drawn V5 optical recipe: ultra-thin material, surface wash,
-    /// dual-angle specular stroke and a dual-radius elevation shadow. Used on
-    /// iOS 17-25, and on every OS when built with a pre-26 SDK.
-    @ViewBuilder
+    /// Adaptive pre-iOS-26 recipe: clean `.ultraThinMaterial` with a subtle
+    /// dual-tone stroke and a soft elevation shadow.
     private func liquidGlassFallback(
         in shape: some Shape,
-        tint: Color,
-        interactive: Bool
+        tint: Color
     ) -> some View {
         self
             .background(
                 ZStack {
                     shape.fill(.ultraThinMaterial)
-                    shape.fill(AstralTheme.surface.opacity(0.38))
+                    shape.fill(AstralTheme.surface.opacity(0.32))
                     shape.fill(tint)
-                    shape.fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(interactive ? 0.14 : 0.09),
-                                Color.white.opacity(0.02),
-                                Color.clear,
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing))
                 }
             )
             .overlay(
                 shape.stroke(
                     LinearGradient(
-                        stops: [
-                            .init(color: Color.white.opacity(interactive ? 0.48 : 0.38), location: 0.0),
-                            .init(color: Color.white.opacity(0.14), location: 0.40),
-                            .init(color: Color.white.opacity(0.04), location: 0.72),
-                            .init(color: Color.white.opacity(interactive ? 0.22 : 0.15), location: 1.0),
+                        colors: [
+                            Color.primary.opacity(0.18),
+                            Color.primary.opacity(0.04),
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing),
-                    lineWidth: interactive ? 1.0 : 0.85)
+                    lineWidth: 0.75)
                 .allowsHitTesting(false)
             )
-            .shadow(color: Color.black.opacity(0.12), radius: interactive ? 16 : 12, y: interactive ? 6 : 4)
+            .shadow(color: Color.black.opacity(0.10), radius: 12, y: 5)
     }
 
-    /// Capsule variant of ``liquidGlass(in:tint:interactive:)`` — the V5
-    /// building block for pills, chips, and status strips.
+    /// Capsule variant of ``liquidGlass(in:tint:interactive:)`` — the native
+    /// iOS 27 Liquid Glass building block for pills, chips, and status strips.
     func liquidCapsule(tint: Color = .clear, interactive: Bool = false) -> some View {
         liquidGlass(in: Capsule(), tint: tint, interactive: interactive)
     }
 
-    /// Elevated iOS 27 Liquid Glass V5 card with deeper refraction and subtle
-    /// inner top-edge light bloom.
+    /// Elevated native iOS 27 Liquid Glass card.
     func liquidGlassCard(
         cornerRadius: CGFloat = 22,
         tint: Color = .clear,
         interactive: Bool = false
     ) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        return self
-            .liquidGlass(in: shape, tint: tint, interactive: interactive)
-            .clipShape(shape)
+        return self.liquidGlass(in: shape, tint: tint, interactive: interactive)
     }
 }
 
 // MARK: - Prominent button style
 
-/// The V5 monochrome primary action: an ink (light mode) / paper (dark mode)
-/// capsule with specular top edge and responsive spring physics.
+/// The system-adaptive primary action capsule.
 public struct GlassProminentButtonStyle: ButtonStyle {
     public init() {}
 
@@ -150,24 +105,8 @@ public struct GlassProminentButtonStyle: ButtonStyle {
             .foregroundStyle(AstralTheme.actionForeground)
             .padding(.horizontal, AstralTheme.Spacings.l)
             .padding(.vertical, 12)
-            .background(
-                ZStack {
-                    Capsule().fill(AstralTheme.actionFill)
-                    Capsule().fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.18),
-                                Color.clear,
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom))
-                }
-            )
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.24), lineWidth: 0.8))
+            .background(Capsule().fill(AstralTheme.actionFill))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .shadow(color: Color.black.opacity(configuration.isPressed ? 0.08 : 0.16), radius: configuration.isPressed ? 4 : 10, y: 4)
-            .animation(.spring(response: 0.26, dampingFraction: 0.76), value: configuration.isPressed)
+            .animation(.smooth(duration: 0.2), value: configuration.isPressed)
     }
 }

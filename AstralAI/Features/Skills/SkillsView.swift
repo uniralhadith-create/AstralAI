@@ -2,12 +2,12 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-// MARK: - Skills tab
+// MARK: - Skills tab (V5.0.0 — System-Adaptive iOS 27 Liquid Glass)
 
 /// The Skills library: installed skills with live toggles, the built-in
 /// catalog, download-from-URL and import-from-file flows (`.skill.skill`,
-/// `.skill` or JSON), per-skill export, plus a manual skill creator — the
-/// V3 monochrome skill management experience.
+/// `.skill` or JSON), per-skill export, plus a manual skill creator — rendered
+/// in 100% system-adaptive iOS 27 Liquid Glass.
 struct SkillsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @EnvironmentObject private var language: LocalizationManager
@@ -64,7 +64,13 @@ struct SkillsView: View {
                             Label(L("skills.importFile", "Skills"), systemImage: "folder")
                         }
                     } label: {
-                        Image(systemName: "plus")
+                        AIcon(
+                            AstralIcons.plus,
+                            size: 16,
+                            strokeWidth: 2.2,
+                            color: AstralTheme.textPrimary)
+                            .frame(width: 34, height: 34)
+                            .liquidGlass(in: Circle(), interactive: true)
                     }
                 }
             }
@@ -76,9 +82,6 @@ struct SkillsView: View {
                 SkillCreatorView()
                     .environmentObject(language)
             }
-            // UIKit document picker (via the bridge) — SwiftUI's
-            // .fileImporter silently fails to deliver picked custom-format
-            // files when presented from inside a sheet's NavigationStack.
             .sheet(isPresented: $showingImporter) {
                 DocumentPickerSheet { urls in
                     handleImportURLs(urls)
@@ -93,10 +96,15 @@ struct SkillsView: View {
 
     private var headerSummary: some View {
         HStack(spacing: AstralTheme.Spacings.m) {
-            Image("AstralMark")
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 40, height: 40)
+            ZStack {
+                Circle()
+                    .frame(width: 46, height: 46)
+                    .liquidGlass(in: Circle(), interactive: true)
+                Image("AstralMark")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 30, height: 30)
+            }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(String(
@@ -198,9 +206,11 @@ struct SkillsView: View {
                                     .controlSize(.small)
                                     .tint(AstralTheme.actionForeground)
                             } else {
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(AstralTheme.actionForeground)
+                                AIcon(
+                                    AstralIcons.download,
+                                    size: 16,
+                                    strokeWidth: 2.3,
+                                    color: AstralTheme.actionForeground)
                             }
                         }
                         .frame(width: 40, height: 40)
@@ -218,8 +228,11 @@ struct SkillsView: View {
 
     private func resultBanner(_ text: String) -> some View {
         HStack(spacing: AstralTheme.Spacings.s) {
-            Image(systemName: messageIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(messageIsError ? AstralTheme.danger : AstralTheme.success)
+            AIcon(
+                messageIsError ? AstralIcons.shield : AstralIcons.checkCircle,
+                size: 15,
+                strokeWidth: 2.2,
+                color: messageIsError ? AstralTheme.danger : AstralTheme.success)
             Text(text)
                 .font(AstralTheme.body(13))
                 .foregroundStyle(AstralTheme.textPrimary)
@@ -228,9 +241,11 @@ struct SkillsView: View {
             Button {
                 message = nil
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(AstralTheme.textSecondary)
+                AIcon(
+                    AstralIcons.close,
+                    size: 12,
+                    strokeWidth: 2.3,
+                    color: AstralTheme.textSecondary)
             }
         }
         .padding(AstralTheme.Spacings.m)
@@ -262,7 +277,6 @@ struct SkillsView: View {
     private func handleImportURLs(_ urls: [URL]) {
         guard let url = urls.first else { return }
 
-        // Accept .skill.skill, .skill and .json files (case-insensitive).
         let filename = url.lastPathComponent.lowercased()
         guard Self.allowedExtensions.contains(where: { filename.hasSuffix($0) }) else {
             showResult(L("skills.import.hint", "Skills"), error: true)
@@ -270,8 +284,6 @@ struct SkillsView: View {
         }
 
         do {
-            // The bridge picks with asCopy: true — the copy lives in the
-            // app container, no security-scoped access needed.
             let skills = try SkillStore.shared.importSkillFile(at: url)
             showResult(String(
                 format: L("skills.imported", "Skills"),
@@ -289,9 +301,27 @@ struct SkillsView: View {
     }
 }
 
+// MARK: - Skill icon resolver (maps skill SF symbols to SVG vector icons)
+
+private func resolvedSkillVectorIcon(_ symbol: String) -> String {
+    switch symbol {
+    case "globe", "safari", "network": return AstralIcons.browser
+    case "magnifyingglass", "doc.text.magnifyingglass": return AstralIcons.search
+    case "terminal", "apple.terminal": return AstralIcons.terminal
+    case "chevron.left.forwardslash.chevron.right", "curlybraces": return AstralIcons.braces
+    case "doc.text", "doc.richtext", "doc": return AstralIcons.file
+    case "tablecells", "chart.bar": return AstralIcons.table
+    case "sparkles", "wand.and.stars": return AstralIcons.sparkles
+    case "cpu", "memorychip": return AstralIcons.cpu
+    case "bolt", "bolt.fill": return AstralIcons.zap
+    case "folder": return AstralIcons.folder
+    default: return AstralIcons.puzzle
+    }
+}
+
 // MARK: - Skill row
 
-/// Installed skill row: icon, localized name/summary, enable toggle.
+/// Installed skill row: vector icon in Liquid Glass circle, localized name/summary, enable toggle.
 struct SkillRow: View {
     let skill: Skill
     var onOpen: () -> Void
@@ -301,14 +331,15 @@ struct SkillRow: View {
     var body: some View {
         Button(action: onOpen) {
             HStack(spacing: AstralTheme.Spacings.s) {
-                Image(systemName: skill.icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(skill.isEnabled ? AstralTheme.accent : AstralTheme.textSecondary)
+                AIcon(
+                    resolvedSkillVectorIcon(skill.icon),
+                    size: 16,
+                    strokeWidth: 2.1,
+                    color: skill.isEnabled ? AstralTheme.accent : AstralTheme.textSecondary)
                     .frame(width: 38, height: 38)
-                    .background(
-                        Circle().fill(skill.isEnabled
-                            ? AstralTheme.accent.opacity(0.12)
-                            : AstralTheme.surfaceSecondary))
+                    .liquidGlass(
+                        in: Circle(),
+                        tint: skill.isEnabled ? AstralTheme.accent.opacity(0.12) : .clear)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(skill.displayName)
@@ -349,11 +380,13 @@ struct LibrarySkillRow: View {
         HStack(spacing: AstralTheme.Spacings.s) {
             Button(action: onOpen) {
                 HStack(spacing: AstralTheme.Spacings.s) {
-                    Image(systemName: skill.icon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(AstralTheme.textSecondary)
+                    AIcon(
+                        resolvedSkillVectorIcon(skill.icon),
+                        size: 16,
+                        strokeWidth: 2.1,
+                        color: AstralTheme.textSecondary)
                         .frame(width: 38, height: 38)
-                        .background(Circle().fill(AstralTheme.surfaceSecondary))
+                        .liquidGlass(in: Circle())
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(skill.displayName)
@@ -371,9 +404,13 @@ struct LibrarySkillRow: View {
             .buttonStyle(.plain)
 
             Button(action: onAdd) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(AstralTheme.accent)
+                AIcon(
+                    AstralIcons.plus,
+                    size: 15,
+                    strokeWidth: 2.4,
+                    color: AstralTheme.accent)
+                    .frame(width: 32, height: 32)
+                    .liquidGlass(in: Circle(), tint: AstralTheme.accent.opacity(0.12), interactive: true)
             }
             .accessibilityLabel(Text(String(format: L("skills.addLabel", "Skills"), skill.displayName)))
         }
@@ -402,11 +439,13 @@ struct SkillDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AstralTheme.Spacings.m) {
                     HStack(spacing: AstralTheme.Spacings.m) {
-                        Image(systemName: skill.icon)
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundStyle(AstralTheme.accent)
+                        AIcon(
+                            resolvedSkillVectorIcon(skill.icon),
+                            size: 24,
+                            strokeWidth: 2.1,
+                            color: AstralTheme.accent)
                             .frame(width: 56, height: 56)
-                            .background(Circle().fill(AstralTheme.accent.opacity(0.12)))
+                            .liquidGlass(in: Circle(), tint: AstralTheme.accent.opacity(0.12))
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text(skill.displayName)
@@ -442,9 +481,7 @@ struct SkillDetailView: View {
                             .textSelection(.enabled)
                             .padding(AstralTheme.Spacings.s)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .fill(AstralTheme.surfaceSecondary))
+                            .liquidGlass(in: RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous))
                     }
 
                     HStack(spacing: AstralTheme.Spacings.s) {
@@ -458,9 +495,15 @@ struct SkillDetailView: View {
                         Button {
                             exportSkill()
                         } label: {
-                            Label(L("common.share", "Shared"), systemImage: "square.and.arrow.up")
-                                .font(AstralTheme.headline(13))
-                                .foregroundStyle(AstralTheme.accent)
+                            HStack(spacing: 6) {
+                                AIcon(AstralIcons.share, size: 13, strokeWidth: 2.2, color: AstralTheme.accent)
+                                Text(L("common.share", "Shared"))
+                                    .font(AstralTheme.headline(13))
+                                    .foregroundStyle(AstralTheme.accent)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .liquidCapsule(interactive: true)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(Text(L("common.share", "Shared")))
@@ -470,9 +513,17 @@ struct SkillDetailView: View {
                                 store.uninstall(id: skill.id)
                                 dismiss()
                             } label: {
-                                Label(L("skills.uninstall", "Skills"), systemImage: "trash")
-                                    .font(AstralTheme.headline(13))
+                                HStack(spacing: 6) {
+                                    AIcon(AstralIcons.trash, size: 13, strokeWidth: 2.2, color: AstralTheme.danger)
+                                    Text(L("skills.uninstall", "Skills"))
+                                        .font(AstralTheme.headline(13))
+                                        .foregroundStyle(AstralTheme.danger)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .liquidCapsule(tint: AstralTheme.danger.opacity(0.08), interactive: true)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -549,14 +600,7 @@ struct SkillCreatorView: View {
                             .foregroundStyle(AstralTheme.textSecondary)
                         TextField(L("skills.namePlaceholder", "Skills"), text: $name)
                             .font(AstralTheme.body(15))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .fill(AstralTheme.surfaceSecondary))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .stroke(AstralTheme.separator, lineWidth: 1))
+                            .textFieldStyle(GlassTextFieldStyle())
                     }
 
                     VStack(alignment: .leading, spacing: AstralTheme.Spacings.xxs) {
@@ -565,14 +609,7 @@ struct SkillCreatorView: View {
                             .foregroundStyle(AstralTheme.textSecondary)
                         TextField(L("skills.summaryPlaceholder", "Skills"), text: $summary)
                             .font(AstralTheme.body(15))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .fill(AstralTheme.surfaceSecondary))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .stroke(AstralTheme.separator, lineWidth: 1))
+                            .textFieldStyle(GlassTextFieldStyle())
                     }
 
                     VStack(alignment: .leading, spacing: AstralTheme.Spacings.xxs) {
@@ -584,12 +621,7 @@ struct SkillCreatorView: View {
                             .frame(minHeight: 180)
                             .scrollContentBackground(.hidden)
                             .padding(8)
-                            .background(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .fill(AstralTheme.surfaceSecondary))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AstralTheme.Radius.small, style: .continuous)
-                                    .stroke(AstralTheme.separator, lineWidth: 1))
+                            .liquidGlass(in: RoundedRectangle(cornerRadius: AstralTheme.Radius.medium, style: .continuous))
                     }
 
                     if let error {
@@ -653,8 +685,7 @@ struct FlowChips: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity)
-                    .background(Capsule().fill(AstralTheme.surfaceSecondary))
-                    .overlay(Capsule().stroke(AstralTheme.separator, lineWidth: 1))
+                    .liquidCapsule()
             }
         }
     }

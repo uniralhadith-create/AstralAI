@@ -1,19 +1,31 @@
 import SwiftUI
+import UIKit
 
-// MARK: - Syntax highlighter (V5.0.0)
+// MARK: - Syntax highlighter (V5.0.0 — System-Adaptive Light & Dark Palette)
 
-/// Lightweight regex-based syntax highlighting tuned for the dark terminal
-/// code card in both light and dark app appearances.
+/// Lightweight regex-based syntax highlighting that adapts automatically to
+/// iOS 27 Light Mode, Dark Mode, and Liquid Glass surfaces.
 enum SyntaxHighlighter {
 
-    // MARK: Theme (high-contrast terminal palette)
+    private static func adaptiveColor(_ light: UInt32, _ dark: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            let hex = traits.userInterfaceStyle == .dark ? dark : light
+            return UIColor(
+                red: CGFloat((hex >> 16) & 0xFF) / 255.0,
+                green: CGFloat((hex >> 8) & 0xFF) / 255.0,
+                blue: CGFloat(hex & 0xFF) / 255.0,
+                alpha: 1)
+        })
+    }
 
-    private static let keywordColor = Color(hex: 0xC4B5FD)
-    private static let stringColor = Color(hex: 0x34D399)
-    private static let commentColor = Color(hex: 0x8E8EA0)
-    private static let numberColor = Color(hex: 0x67E8F9)
-    private static let typeColor = Color(hex: 0xF472B6)
-    private static let plainColor = Color(hex: 0xF5F5F7)
+    // MARK: Theme (System-Adaptive Light / Dark tokens)
+
+    private static let keywordColor = adaptiveColor(0x6D28D9, 0xC4B5FD)
+    private static let stringColor = adaptiveColor(0x047857, 0x34D399)
+    private static let commentColor = AstralTheme.moonDust
+    private static let numberColor = adaptiveColor(0x0369A1, 0x67E8F9)
+    private static let typeColor = adaptiveColor(0xBE185D, 0xF472B6)
+    private static let plainColor = AstralTheme.textPrimary
 
     // MARK: Token model
 

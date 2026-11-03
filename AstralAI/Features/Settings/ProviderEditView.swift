@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Provider editor
+// MARK: - Provider editor (V5 System-Adaptive iOS 27 Liquid Glass)
 
 /// Sheet for creating or editing an AI provider: basics, API key, model
 /// discovery, connection test and an advanced section exposing the full
@@ -72,6 +72,7 @@ struct ProviderEditView: View {
                 .padding(.horizontal, AstralTheme.Spacings.m)
                 .padding(.vertical, AstralTheme.Spacings.l)
             }
+            .background(AstralTheme.background.ignoresSafeArea())
             .navigationTitle(isNew ? L("settings.addProvider", "Settings") : L("settings.editProvider", "Settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -143,13 +144,19 @@ struct ProviderEditView: View {
             }
         } label: {
             HStack(spacing: AstralTheme.Spacings.xs) {
-                Image(systemName: "wand.and.stars")
-                    .font(.system(size: 13, weight: .semibold))
+                AIcon(
+                    AstralIcons.sparkles,
+                    size: 13.5,
+                    strokeWidth: 2.2,
+                    color: AstralTheme.accent)
                 Text(L("settings.presets", "Settings"))
                     .font(AstralTheme.headline(13))
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                AIcon(
+                    AstralIcons.chevronsUpDown,
+                    size: 11,
+                    strokeWidth: 2.3,
+                    color: AstralTheme.accent)
             }
             .foregroundStyle(AstralTheme.accent)
             .padding(.horizontal, 12)
@@ -211,8 +218,6 @@ struct ProviderEditView: View {
         }
     }
 
-    /// Contextual key hint: preset-specific when the URL matches a preset,
-    /// the Bedrock format hint for Bedrock, the generic hint otherwise.
     private var currentKeyHint: String {
         if config.protocolKind == .bedrock {
             return L("settings.bedrockKeyHint", "Settings")
@@ -281,9 +286,11 @@ struct ProviderEditView: View {
                         Button {
                             showingModelPicker = true
                         } label: {
-                            Image(systemName: "list.bullet")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(AstralTheme.accent)
+                            AIcon(
+                                AstralIcons.todo,
+                                size: 15,
+                                strokeWidth: 2.2,
+                                color: AstralTheme.accent)
                                 .padding(.horizontal, AstralTheme.Spacings.m)
                         }
                         .buttonStyle(GlassButtonStyle())
@@ -302,9 +309,11 @@ struct ProviderEditView: View {
                             applyModel(model.id)
                         } label: {
                             HStack(spacing: AstralTheme.Spacings.s) {
-                                Image(systemName: "plus.circle")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(AstralTheme.nebulaViolet)
+                                AIcon(
+                                    AstralIcons.plus,
+                                    size: 13.5,
+                                    strokeWidth: 2.3,
+                                    color: AstralTheme.nebulaViolet)
                                 Text(model.id)
                                     .font(AstralTheme.mono(12))
                                     .foregroundStyle(AstralTheme.textPrimary)
@@ -364,9 +373,11 @@ struct ProviderEditView: View {
 
             if let testResult {
                 HStack(alignment: .top, spacing: AstralTheme.Spacings.xs) {
-                    Image(systemName: testSucceeded ? "checkmark.circle.fill" : "xmark.octagon.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(testSucceeded ? AstralTheme.success : AstralTheme.danger)
+                    AIcon(
+                        testSucceeded ? AstralIcons.checkCircle : AstralIcons.close,
+                        size: 14,
+                        strokeWidth: 2.3,
+                        color: testSucceeded ? AstralTheme.success : AstralTheme.danger)
                     Text(testResult)
                         .font(AstralTheme.body(13))
                         .foregroundStyle(testSucceeded ? AstralTheme.success : AstralTheme.danger)
@@ -575,8 +586,6 @@ struct ProviderEditView: View {
         }
     }
 
-    /// Uses the form's current values (not the persisted ones) so discovery
-    /// works for brand-new providers and reflects unsaved edits instantly.
     private func discoverModels() {
         discovering = true
         discoveryError = nil
@@ -623,7 +632,6 @@ struct ProviderEditView: View {
         nameError = trimmedName.isEmpty
         urlError = trimmedURL.isEmpty
 
-        // Extra body must be empty or a valid JSON object.
         let trimmedExtraBody = extraBodyText.trimmingCharacters(in: .whitespacesAndNewlines)
         var extraBody: [String: JSONValue] = [:]
         if !trimmedExtraBody.isEmpty {
