@@ -26,6 +26,9 @@ extension View {
         tint: Color = .clear,
         interactive: Bool = false
     ) -> some View {
+        #if compiler(>=6.2)
+        // Xcode 26+ ships the iOS 26 SDK where the native `glassEffect`
+        // material and `Glass` type exist.
         if #available(iOS 26.0, *) {
             if interactive {
                 self
@@ -61,39 +64,57 @@ extension View {
                         .allowsHitTesting(false))
             }
         } else {
-            self
-                .background(
-                    ZStack {
-                        shape.fill(.ultraThinMaterial)
-                        shape.fill(AstralTheme.surface.opacity(0.38))
-                        shape.fill(tint)
-                        shape.fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(interactive ? 0.14 : 0.09),
-                                    Color.white.opacity(0.02),
-                                    Color.clear,
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing))
-                    }
-                )
-                .overlay(
-                    shape.stroke(
+            liquidGlassFallback(in: shape, tint: tint, interactive: interactive)
+        }
+        #else
+        // Xcode 16 / iOS 18 SDK: the `Glass` API does not exist yet, so the
+        // V5 optical recipe is drawn by hand — identical to what iOS 17-25
+        // devices render at runtime.
+        liquidGlassFallback(in: shape, tint: tint, interactive: interactive)
+        #endif
+    }
+
+    /// The hand-drawn V5 optical recipe: ultra-thin material, surface wash,
+    /// dual-angle specular stroke and a dual-radius elevation shadow. Used on
+    /// iOS 17-25, and on every OS when built with a pre-26 SDK.
+    @ViewBuilder
+    private func liquidGlassFallback(
+        in shape: some Shape,
+        tint: Color,
+        interactive: Bool
+    ) -> some View {
+        self
+            .background(
+                ZStack {
+                    shape.fill(.ultraThinMaterial)
+                    shape.fill(AstralTheme.surface.opacity(0.38))
+                    shape.fill(tint)
+                    shape.fill(
                         LinearGradient(
-                            stops: [
-                                .init(color: Color.white.opacity(interactive ? 0.48 : 0.38), location: 0.0),
-                                .init(color: Color.white.opacity(0.14), location: 0.40),
-                                .init(color: Color.white.opacity(0.04), location: 0.72),
-                                .init(color: Color.white.opacity(interactive ? 0.22 : 0.15), location: 1.0),
+                            colors: [
+                                Color.white.opacity(interactive ? 0.14 : 0.09),
+                                Color.white.opacity(0.02),
+                                Color.clear,
                             ],
                             startPoint: .topLeading,
-                            endPoint: .bottomTrailing),
-                        lineWidth: interactive ? 1.0 : 0.85)
-                    .allowsHitTesting(false)
-                )
-                .shadow(color: Color.black.opacity(0.12), radius: interactive ? 16 : 12, y: interactive ? 6 : 4)
-        }
+                            endPoint: .bottomTrailing))
+                }
+            )
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(interactive ? 0.48 : 0.38), location: 0.0),
+                            .init(color: Color.white.opacity(0.14), location: 0.40),
+                            .init(color: Color.white.opacity(0.04), location: 0.72),
+                            .init(color: Color.white.opacity(interactive ? 0.22 : 0.15), location: 1.0),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing),
+                    lineWidth: interactive ? 1.0 : 0.85)
+                .allowsHitTesting(false)
+            )
+            .shadow(color: Color.black.opacity(0.12), radius: interactive ? 16 : 12, y: interactive ? 6 : 4)
     }
 
     /// Capsule variant of ``liquidGlass(in:tint:interactive:)`` — the V5

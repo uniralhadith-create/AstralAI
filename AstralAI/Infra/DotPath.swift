@@ -33,6 +33,17 @@ enum DotPath {
         return collect(from: value, segments: segments)
     }
 
+    /// Returns every `JSONValue` reachable via the path ([] when nothing
+    /// matches). Path rules mirror ``extractArray(from:path:)``: numeric
+    /// segments index arrays, `[]` (or empty) segments expand across arrays,
+    /// everything else is an object key. Used by the `jq` shell command.
+    static func evaluateAll(_ value: JSONValue, path: String) -> [JSONValue] {
+        if path.isEmpty { return [value] }
+        let segments = path.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard !segments.isEmpty else { return [value] }
+        return collectJSON(from: value, segments: segments)
+    }
+
     /// Converts scalar JSON values to a display string.
     /// Strings pass through, numbers use their description, collections
     /// and null return nil.
@@ -80,5 +91,35 @@ enum DotPath {
         guard let dictionary = value as? [String: Any],
               let next = dictionary[segment] else { return [] }
         return collect(from: next, segments: rest)
+    }
+
+    /// `JSONValue` variant of ``collect(from:segments:)`` with identical
+    /// traversal semantics.
+    private static func collectJSON(from value: JSONValue, segments: [String]) -> [JSONValue] {
+        guard let segment = segments.first else { return [value] }
+        let rest = Array(segments.dropFirst())
+
+        // Expansion segment: map the remaining path over array elements.
+        if segment.isEmpty || segment == "[]" {
+            guard case .array(let items) = value else { return [] }
+            var results: [JSONValue] = []
+            for element in items {
+                results.append(contentsOf: collectJSON(from: element, segments: rest))
+            }
+            return results
+        }
+
+        // Numeric segment: array index.
+        if let index = Int(segment) {
+            guard case .array(let items) = value,
+                  index >= 0,
+                  index < items.count else { return [] }
+            return collectJSON(from: items[index], segments: rest)
+        }
+
+        // Object key segment.
+        guard case .object(let dictionary) = value,
+              let next = dictionary[segment] else { return [] }
+        return collectJSON(from: next, segments: rest)
     }
 }
