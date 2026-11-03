@@ -1,0 +1,126 @@
+/* Settings strings — English */
+
+"settings.title" = "Settings";
+"settings.language" = "Language";
+"settings.providers" = "AI Providers";
+"settings.noProviders" = "No providers yet";
+"settings.noProvidersHint" = "Add an OpenAI-compatible or fully custom provider to start using the agent.";
+"settings.addProvider" = "Add provider";
+"settings.editProvider" = "Edit provider";
+"settings.untitled" = "Untitled provider";
+"settings.deleteProvider" = "Delete provider?";
+"settings.deleteProviderHint" = "This removes the provider and its API key from this device.";
+
+"settings.basics" = "Basics";
+"settings.name" = "Name";
+"settings.nameRequired" = "Name is required.";
+"settings.baseURL" = "Base URL";
+"settings.urlRequired" = "Base URL is required.";
+"settings.protocol" = "Protocol";
+"settings.protocolOpenAI" = "OpenAI-compatible";
+"settings.protocolCustom" = "Custom";
+
+"settings.apiKey" = "API key";
+"settings.keySaved" = "Key saved — enter a new one to replace it";
+"settings.keyHint" = "Stored securely in the iOS Keychain. It never leaves your device.";
+
+"settings.models" = "Models";
+"settings.modelMain" = "Main";
+"settings.modelPlanner" = "Planner";
+"settings.modelSubAgent" = "Sub-agent";
+"settings.applyTo" = "Assign discovered model to";
+"settings.discoverModels" = "Discover models";
+"settings.discovering" = "Discovering…";
+"settings.noModels" = "No models found";
+"settings.searchModels" = "Search models";
+
+"settings.testConnection" = "Test connection";
+"settings.testing" = "Testing…";
+"settings.testOk" = "Connected in %ld ms";
+
+"settings.advanced" = "Advanced";
+"settings.temperature" = "Temperature";
+"settings.maxTokens" = "Max tokens";
+"settings.timeout" = "Timeout (seconds)";
+"settings.sendKeyForModels" = "Send API key when listing models";
+"settings.customNote" = "The paths and options below apply to the Custom protocol only.";
+
+"settings.chatPath" = "Chat path";
+"settings.modelsPath" = "Models path";
+"settings.method" = "HTTP method";
+"settings.authStyle" = "Authentication";
+"settings.authBearer" = "Bearer token";
+"settings.authCustomHeader" = "Custom header";
+"settings.authNone" = "None";
+"settings.authHeaderName" = "Auth header name";
+"settings.authValueFormat" = "Auth value format";
+"settings.streamFormat" = "Stream format";
+"settings.streamSSE" = "SSE";
+"settings.streamNDJSON" = "NDJSON";
+"settings.streamNone" = "Single response";
+"settings.streamTextPath" = "Stream text path";
+"settings.fullTextPath" = "Full text path";
+"settings.toolCallsPath" = "Tool calls path";
+"settings.finishPath" = "Finish reason path";
+"settings.modelsIDPath" = "Model IDs path";
+
+"settings.headers" = "Extra headers";
+"settings.addHeader" = "Add header";
+"settings.headerKey" = "Header";
+"settings.headerValue" = "Value";
+"settings.extraBody" = "Extra body (JSON object)";
+"settings.invalidJSON" = "Invalid JSON.";
+
+"settings.agentBehavior" = "Agent behavior";
+"settings.maxSteps" = "Maximum steps";
+"settings.allowParallel" = "Allow parallel sub-agents";
+"settings.autoNotify" = "Notify me when tasks finish";
+
+"settings.about" = "About";
+"settings.save" = "Save";
+"settings.cancel" = "Cancel";
+"settings.providerSaved" = "Provider saved";
+
+/* Provider presets — English */
+
+"settings.presets" = "Quick setup — choose a provider";
+"settings.bedrockKeyHint" = "Paste your AWS credentials as ACCESS_KEY_ID:SECRET_ACCESS_KEY (an IAM user with AmazonBedrockFullAccess). The region comes from the base URL.";
+
+/* Cloud computer — English (V4.0) */
+"settings.toolsNative" = "native tools";
+"settings.toolsText" = "text protocol";
+"settings.cloudComputer" = "Cloud Computer";
+"settings.cloudComputerHint" = "Gives the agent a REAL Ubuntu Linux machine in the cloud (E2B) — full bash, apt, Python with pip, git and anything else. Files come back to your iPhone automatically.";
+"settings.cloudSetup" = "Connect Cloud Linux";
+"settings.actionButton" = "Action Button";
+"settings.actionButtonHint" = "Action Button (iPhone 15 Pro+) — ask Astral over any screen, the app never opens";
+"settings.actionButton.step1" = "Open Settings on the iPhone, then Action Button.";
+"settings.actionButton.step2" = "Choose Shortcut — Astral · Quick Task is right there (nothing to build).";
+"settings.actionButton.step3" = "Press the button and type your task — Astral answers right over your current screen. The app never opens.";
+"settings.actionButton.try" = "Feel the Quick Launch";
+"settings.cloudDisconnect" = "Disconnect cloud computer";
+"settings.cloudConnected" = "Cloud Linux connected";
+"settings.cloudConnectedDetail" = "The agent can now run anything on a real Ubuntu machine.";
+"settings.cloudOff" = "machine off — boots on first task";
+"settings.cloudStarting" = "booting Ubuntu…";
+"settings.cloudRunning" = "Ubuntu running";
+"settings.cloudFailed" = "connection error";
+"settings.cloudTitle" = "A real computer for your AI";
+"settings.cloudIntro" = "Connect a cloud Ubuntu Linux machine (powered by E2B — the same infrastructure Manus uses). Your agent gets a full OS: real bash, apt packages, Python with pip, git, compilation — everything the iPhone cannot run locally. Astral starts it on demand and shuts it down automatically when idle.";
+"settings.cloudGetKey" = "Get a free API key at";
+"settings.cloudAPIKey" = "E2B API key";
+"settings.cloudKeyFooter" = "Stored only in your iPhone's Keychain. Create a free account at e2b.dev, copy the API key and paste it here.";
+"settings.cloudTesting" = "Booting a test machine…";
+"settings.cloudTestAndSave" = "Test & Connect";
+"settings.cloudReady" = "Cloud Linux is ready. The agent's terminal gains a Cloud tab.";
+
+/* V4.5.2 — computer mode switch + key status (English) */
+
+"settings.modeTitle" = "Computer";
+"settings.modeIntro" = "Choose the machine the whole app runs on.";
+"settings.modeLocal" = "Local (iPhone)";
+"settings.modeCloud" = "Cloud (Ubuntu)";
+"settings.modeFooter" = "Local: the on-device astra-os sandbox — private and instant. Cloud: a REAL Ubuntu Linux computer (E2B) — full bash, apt, pip and heavy processing; it powers off automatically after every finished job.";
+"settings.cloudKeyBundled" = "Using the built-in Astral key";
+"settings.cloudKeyCustom" = "Using your own E2B key";
+"settings.cloudAutoOff" = "The cloud computer powers off automatically once the agent finishes a job, so credits never burn while idle.";

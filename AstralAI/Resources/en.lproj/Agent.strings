@@ -1,0 +1,37 @@
+/* Agent strings — English */
+
+"agent.busy" = "The agent is already working. Wait for it to finish or stop it first.";
+"agent.newChat" = "New Chat";
+"agent.sessions" = "Sessions";
+"agent.thinking" = "Thinking";
+"agent.planning" = "Planning";
+"agent.executing" = "Executing";
+"agent.merging" = "Merging results";
+"agent.stepOf" = "Step %d of %d";
+"agent.completed" = "Completed";
+"agent.failed" = "Failed";
+"agent.cancelled" = "Cancelled";
+"agent.noActiveProvider" = "No AI provider is configured. Add one in Settings.";
+"agent.untitled" = "New Chat";
+"agent.runningTools" = "Running tools";
+"agent.allStepsFailed" = "All steps failed. The task could not be completed.";
+"agent.roundLimitReached" = "I could not produce a final answer for this request. Please try again or rephrase it.";
+"agent.skillInstalled" = "✓ Skill installed: %@ — it is now in the Skills section and can be invoked with /";
+"agent.skillInstallFailed" = "The attached skill file could not be read. Make sure it is a valid .skill or JSON file.";
+"agent.error.network" = "Network problem";
+"agent.error.rateLimited" = "The AI provider is rate limiting requests. Try again shortly.";
+"agent.error.unauthorized" = "Authentication failed. Check the API key in Settings.";
+"agent.error.decoding" = "Could not decode the provider response.";
+"agent.error.provider" = "Provider error";
+"agent.error.generic" = "The task failed";
+"agent.subAgents" = "Parallel Agents";
+"agent.plan" = "Execution Plan";
+"agent.progress" = "Progress";
+"agent.stepDone" = "Step completed";
+"agent.stepFailed" = "Step failed";
+
+/* V2 — English */
+
+"agent.imageTask" = "Image analysis";
+
+"agent.interrupted" = "The task was paused while working in the background — it will resume automatically.";

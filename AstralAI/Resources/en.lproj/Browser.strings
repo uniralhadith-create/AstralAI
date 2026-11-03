@@ -1,0 +1,19 @@
+/* Browser strings — English */
+
+"browser.title" = "Browser";
+"browser.agentDriving" = "Agent driving";
+"browser.takeover" = "The agent is controlling the browser";
+"browser.urlPlaceholder" = "Search or enter address";
+"browser.action.open" = "Opening";
+"browser.action.click" = "Clicking";
+"browser.action.type" = "Typing";
+"browser.action.scroll" = "Scrolling";
+"browser.action.read" = "Reading";
+"browser.action.back" = "Going back";
+"browser.action.list" = "Inspecting";
+"browser.action.summary" = "Summarizing";
+"browser.action.screenshot" = "Capturing";
+"browser.loading" = "Loading";
+"browser.nav.back" = "Back";
+"browser.nav.forward" = "Forward";
+"browser.nav.reload" = "Reload";

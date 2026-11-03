@@ -1,0 +1,140 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*", "V*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          BEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Selecting $BEST"
+          sudo xcode-select -s "$BEST"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios || true
+
+      - name: Install XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project AstralAI.xcodeproj \
+            -scheme AstralAI \
+            -derivedDataPath build || true
+
+      - name: Unit tests (non-blocking)
+        continue-on-error: true
+        run: |
+          SIM_ID=$(xcrun simctl list devices available | grep -oE '\([0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\)' | head -1 | tr -d '() ')
+          if [ -z "$SIM_ID" ]; then
+            echo "No simulator available - skipping tests"
+            exit 0
+          fi
+          echo "Using simulator: $SIM_ID"
+          set -o pipefail
+          xcodebuild test \
+            -project AstralAI.xcodeproj \
+            -scheme AstralAI \
+            -destination "id=$SIM_ID" \
+            -derivedDataPath build \
+            2>&1 | xcbeautify --quieter
+
+      - name: Build unsigned IPA
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project AstralAI.xcodeproj \
+            -scheme AstralAI \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            > build-full.log 2>&1 || BUILD_FAILED=1
+
+          echo "===== ALL COMPILE ERRORS ====="
+          grep -E "error: " build-full.log | sort -u | head -100 || true
+          echo "=============================="
+
+          if [ "${BUILD_FAILED:-0}" = "1" ]; then
+            echo "BUILD FAILED"
+            exit 1
+          fi
+
+          APP="build/Build/Products/Release-iphoneos/AstralAI.app"
+          if [ ! -d "$APP" ]; then
+            echo "APP bundle not found at $APP"
+            exit 1
+          fi
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry AstralAI-V5.0.0-unsigned.ipa Payload
+          cp AstralAI-V5.0.0-unsigned.ipa AstralAI-unsigned.ipa
+          ls -lh *.ipa
+
+      - name: Build ad-hoc signed IPA (fallback if unsigned failed)
+        if: failure()
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project AstralAI.xcodeproj \
+            -scheme AstralAI \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build-signed \
+            CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            2>&1 | xcbeautify --quieter
+
+          APP="build-signed/Build/Products/Release-iphoneos/AstralAI.app"
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry AstralAI-V5.0.0-adhoc.ipa Payload
+          cp AstralAI-V5.0.0-adhoc.ipa AstralAI-adhoc.ipa
+          ls -lh *.ipa
+
+      - name: Upload IPA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AstralAI-V5.0.0-ipa
+          path: |
+            *.ipa
+          if-no-files-found: warn
+
+      - name: Create or Update GitHub Release with IPA
+        if: success()
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v5.0.0"
+          fi
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" *.ipa \
+            --title "Astral AI V5.0.0 ($TAG)" \
+            --notes "Astral AI V5.0.0 — Autonomous AI Agent for iOS with iOS 27 Liquid Glass V5, custom vector computer icon, smooth feathered task shimmer, enhanced Markdown, and full astra-os 5.0 Linux workstation environment. Install via AltStore, SideStore, Feather, ESign, or Sideloadly." \
+            --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

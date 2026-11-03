@@ -1,0 +1,35 @@
+/* Platform strings — English
+   (Platform module: Live Activity, EventKit confirmations, intents) */
+
+/* Live Activity step states */
+"la.starting" = "Starting…";
+"la.completed" = "Completed";
+"la.stopped" = "Stopped";
+
+/* EventKit confirmations */
+"reminder.created" = "Reminder created: %@";
+"event.created" = "Calendar event created: %@";
+
+/* EventKit errors */
+"eventkit.remindersDenied" = "Reminders access was denied. Enable it in Settings → Astral AI.";
+"eventkit.eventsDenied" = "Calendar access was denied. Enable it in Settings → Astral AI.";
+"eventkit.noReminderList" = "No default reminder list is available on this device.";
+"eventkit.noCalendar" = "No default calendar is available on this device.";
+
+/* App Intents */
+"intent.opening" = "Opening Astral…";
+
+/* V2 — English */
+
+"la.thinking" = "Thinking…";
+"la.responding" = "Writing the reply…";
+"la.planning" = "Planning the task…";
+"la.usingTool" = "Using %@…";
+
+"la.usingTools" = "Running %d tools…";
+"intent.quickAccepted" = "Task received — Astral is on it";
+
+"intent.quickEmpty" = "Type a task or question for Astral first.";
+"intent.noProvider" = "Add an AI provider in the Astral app first — the task is saved and will run when you open it.";
+"intent.quickSaved" = "Task received — Astral will run it in full the moment you open the app.";
+"intent.notificationTitle" = "Astral — Quick Task";

@@ -1,0 +1,58 @@
+/* Shared strings — Arabic */
+
+"app.name" = "أسترال AI";
+"tab.chat" = "المحادثة";
+"tab.browser" = "المتصفح";
+"tab.files" = "الملفات";
+"tab.settings" = "الإعدادات";
+"tab.bar" = "التنقل الرئيسي";
+
+"lang.system" = "لغة النظام";
+
+"status.working" = "يعمل الآن";
+
+"common.ok" = "حسناً";
+"common.cancel" = "إلغاء";
+"common.done" = "تم";
+"common.create" = "إنشاء";
+"common.delete" = "حذف";
+"common.share" = "مشاركة";
+"common.stop" = "إيقاف";
+"common.copy" = "نسخ";
+"common.copied" = "تم النسخ";
+"common.retry" = "إعادة المحاولة";
+"common.error" = "خطأ";
+"common.loading" = "جارٍ التحميل";
+"common.search" = "بحث";
+"common.save" = "حفظ";
+"common.add" = "إضافة";
+"common.edit" = "تعديل";
+"common.close" = "إغلاق";
+"common.continue" = "متابعة";
+"common.open" = "فتح";
+"common.refresh" = "تحديث";
+"common.none" = "لا شيء";
+"common.settings" = "الإعدادات";
+"common.enabled" = "مُفعّل";
+"common.disabled" = "معطّل";
+
+/* Provider connection errors — Arabic */
+
+"error.noProvider" = "لا يوجد مزود ذكاء اصطناعي مُعد بعد. افتح الإعدادات ← المزودون لإضافة واحد.";
+"error.invalidURL" = "رابط المزود غير صالح";
+"error.unauthorized" = "فشل تسجيل الدخول. تأكد أن مفتاح API صحيح وأن به رصيداً.";
+"error.rateLimited" = "تم تجاوز حد الطلبات. انتظر قليلاً ثم أعد المحاولة.";
+"error.badResponse" = "خطأ من المزود";
+"error.network" = "خطأ في الاتصال";
+"error.decoding" = "تعذّرت قراءة مخرجات النموذج";
+"error.cancelled" = "تم إلغاء الطلب.";
+
+/* Tabs — Arabic */
+
+"tab.skills" = "المهارات";
+
+/* V2/V3 — Arabic */
+
+"app.versionBadge" = "V5.0.0 · الإصدار 5.0.0";
+
+"common.back" = "رجوع";

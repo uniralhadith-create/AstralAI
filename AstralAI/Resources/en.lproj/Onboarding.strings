@@ -1,0 +1,21 @@
+/* Onboarding strings — English */
+
+"onboarding.welcomeTitle" = "Meet your autonomous agent";
+"onboarding.welcomeBody" = "Astral plans, browses the web, writes code and delivers real files — while you watch it happen.";
+"onboarding.languageTitle" = "Choose your language";
+"onboarding.languageBody" = "You can change this anytime in Settings.";
+"onboarding.connectTitle" = "Connect a provider";
+"onboarding.connectBody" = "Astral works with any OpenAI-compatible API. Add your key in Settings to begin.";
+"onboarding.setupProvider" = "Set up provider";
+"onboarding.skip" = "Skip for now";
+"onboarding.continue" = "Continue";
+
+"about.developer" = "Developer";
+"about.technology" = "Technology";
+"about.version" = "Version %@";
+"about.role" = "Founder & CEO — UNIRAL";
+"about.tagline" = "Autonomous AI Agent · Liquid Glass";
+"about.copyright" = "© 2026 UNIRAL · Tariq El-Fares";
+"about.tech.design" = "SwiftUI · Liquid Glass design";
+"about.tech.agents" = "Background agents · Live Activities";
+"about.tech.keychain" = "On-device Keychain for API keys";

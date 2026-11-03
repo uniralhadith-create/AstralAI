@@ -1,0 +1,37 @@
+/* Agent strings — Arabic */
+
+"agent.busy" = "الوكيل يعمل بالفعل. انتظر انتهاءه أو أوقفه أولاً.";
+"agent.newChat" = "محادثة جديدة";
+"agent.sessions" = "الجلسات";
+"agent.thinking" = "يفكر";
+"agent.planning" = "يخطط";
+"agent.executing" = "ينفذ";
+"agent.merging" = "يدمج النتائج";
+"agent.stepOf" = "الخطوة %d من %d";
+"agent.completed" = "اكتمل";
+"agent.failed" = "فشل";
+"agent.cancelled" = "أُلغي";
+"agent.noActiveProvider" = "لا يوجد مزود ذكاء اصطناعي مفعّل. أضف واحداً من الإعدادات.";
+"agent.untitled" = "محادثة جديدة";
+"agent.runningTools" = "يشغّل الأدوات";
+"agent.allStepsFailed" = "فشلت جميع الخطوات. تعذّر إكمال المهمة.";
+"agent.roundLimitReached" = "لم أتمكن من إنتاج إجابة نهائية لهذا الطلب. حاول مجدداً أو أعد صياغته.";
+"agent.skillInstalled" = "✓ تم تثبيت المهارة: %@ — أصبحت الآن في قسم المهارات ويمكن استدعاؤها بـ /";
+"agent.skillInstallFailed" = "تعذّر قراءة ملف المهارة المرفق. تأكد أنه ملف ‎.skill أو JSON صحيح.";
+"agent.error.network" = "مشكلة في الشبكة";
+"agent.error.rateLimited" = "وصلت الطلبات إلى الحد المسموح لدى المزود. حاول بعد قليل.";
+"agent.error.unauthorized" = "فشلت المصادقة. تحقق من مفتاح API في الإعدادات.";
+"agent.error.decoding" = "تعذّر تحليل استجابة المزود.";
+"agent.error.provider" = "خطأ من المزود";
+"agent.error.generic" = "فشلت المهمة";
+"agent.subAgents" = "الوكلاء المتوازون";
+"agent.plan" = "خطة التنفيذ";
+"agent.progress" = "التقدم";
+"agent.stepDone" = "اكتملت الخطوة";
+"agent.stepFailed" = "فشلت الخطوة";
+
+/* V2 — Arabic */
+
+"agent.imageTask" = "تحليل صورة";
+
+"agent.interrupted" = "تم إيقاف المهمة مؤقتًا أثناء العمل في الخلفية — وستُستأنف تلقائيًا.";

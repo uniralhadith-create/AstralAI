@@ -1,0 +1,19 @@
+/* Browser strings — Arabic */
+
+"browser.title" = "المتصفح";
+"browser.agentDriving" = "الوكيل يتحكم الآن";
+"browser.takeover" = "الوكيل يتحكم بالمتصفح الآن";
+"browser.urlPlaceholder" = "ابحث أو أدخل عنواناً";
+"browser.action.open" = "فتح";
+"browser.action.click" = "نقر";
+"browser.action.type" = "كتابة";
+"browser.action.scroll" = "تمرير";
+"browser.action.read" = "قراءة";
+"browser.action.back" = "رجوع";
+"browser.action.list" = "فحص العناصر";
+"browser.action.summary" = "تلخيص الصفحة";
+"browser.action.screenshot" = "التقاط لقطة";
+"browser.loading" = "جارٍ التحميل";
+"browser.nav.back" = "رجوع";
+"browser.nav.forward" = "للأمام";
+"browser.nav.reload" = "إعادة تحميل";

@@ -1,0 +1,35 @@
+/* Platform strings — Arabic
+   (Platform module: Live Activity, EventKit confirmations, intents) */
+
+/* Live Activity step states */
+"la.starting" = "جارٍ البدء…";
+"la.completed" = "اكتملت المهمة";
+"la.stopped" = "توقفت المهمة";
+
+/* EventKit confirmations */
+"reminder.created" = "تم إنشاء التذكير: %@";
+"event.created" = "تم إنشاء الحدث في التقويم: %@";
+
+/* EventKit errors */
+"eventkit.remindersDenied" = "تم رفض الوصول إلى التذكيرات. يمكنك تفعيله من الإعدادات ← Astral AI.";
+"eventkit.eventsDenied" = "تم رفض الوصول إلى التقويم. يمكنك تفعيله من الإعدادات ← Astral AI.";
+"eventkit.noReminderList" = "لا توجد قائمة تذكيرات افتراضية على هذا الجهاز.";
+"eventkit.noCalendar" = "لا يوجد تقويم افتراضي على هذا الجهاز.";
+
+/* App Intents */
+"intent.opening" = "جارٍ فتح أسترال…";
+
+/* V2 — Arabic */
+
+"la.thinking" = "يفكر…";
+"la.responding" = "يكتب الرد…";
+"la.planning" = "يخطط للمهمة…";
+"la.usingTool" = "يستخدم %@…";
+
+"la.usingTools" = "تشغيل %d من الأدوات…";
+"intent.quickAccepted" = "استلمت المهمة — أسترا شغال عليها";
+
+"intent.quickEmpty" = "اكتب مهمة أو سؤالاً لأسترا أولاً.";
+"intent.noProvider" = "أضف مزوّد ذكاء اصطناعي في تطبيق أسترا أولاً — المهمة محفوظة وستعمل عند فتح التطبيق.";
+"intent.quickSaved" = "استلمت المهمة — أسترا هنفذها بالكامل أول ما تفتح التطبيق.";
+"intent.notificationTitle" = "أسترا — إجابة سريعة";

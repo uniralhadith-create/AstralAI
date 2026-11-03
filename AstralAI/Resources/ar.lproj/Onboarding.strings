@@ -1,0 +1,21 @@
+/* Onboarding strings — Arabic */
+
+"onboarding.welcomeTitle" = "تعرّف على وكيلك المستقل";
+"onboarding.welcomeBody" = "أسترال يُخطّط ويتصفّح الويب ويكتب الأكواد ويسلّم ملفات حقيقية — وترى كل ذلك يحدث أمامك.";
+"onboarding.languageTitle" = "اختر لغتك";
+"onboarding.languageBody" = "يمكنك تغيير اللغة في أي وقت من الإعدادات.";
+"onboarding.connectTitle" = "اربط مزوّد الذكاء الاصطناعي";
+"onboarding.connectBody" = "يعمل أسترال مع أي واجهة متوافقة مع OpenAI. أضف مفتاح API في الإعدادات للبدء.";
+"onboarding.setupProvider" = "إعداد المزوّد";
+"onboarding.skip" = "تخطٍّ الآن";
+"onboarding.continue" = "متابعة";
+
+"about.developer" = "المطوّر";
+"about.technology" = "التقنية";
+"about.version" = "الإصدار %@";
+"about.role" = "المؤسس والرئيس التنفيذي — UNIRAL";
+"about.tagline" = "وكيل ذكاء اصطناعي مستقل · Liquid Glass";
+"about.copyright" = "© 2026 UNIRAL · Tariq El-Fares";
+"about.tech.design" = "SwiftUI · تصميم Liquid Glass";
+"about.tech.agents" = "وكلاء في الخلفية · Live Activities";
+"about.tech.keychain" = "مفاتيح API محفوظة في Keychain على جهازك";

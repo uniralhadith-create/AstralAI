@@ -1,0 +1,95 @@
+/* Chat strings — English */
+
+"chat.tagline" = "Your autonomous AI agent — it plans, browses, codes and delivers real files while you watch.";
+
+"chat.composerPlaceholder" = "Message Astral…";
+
+"chat.send" = "Send";
+"chat.newChat" = "New chat";
+"chat.sessions" = "Sessions";
+"chat.deleteChat" = "Delete %@";
+"chat.plan" = "Execution plan";
+"chat.tool" = "Tool";
+
+"chat.suggestions.news.title" = "Latest AI news briefing";
+"chat.suggestions.trip.title" = "Plan a 3-day trip";
+"chat.suggestions.script.title" = "Write a Python script";
+"chat.suggestions.compare.title" = "Compare flagship phones";
+
+"chat.phase.idle" = "Idle";
+"chat.phase.planning" = "Planning";
+"chat.phase.executing" = "Executing";
+"chat.phase.merging" = "Merging results";
+"chat.phase.waitingUser" = "Waiting for you";
+"chat.phase.completed" = "Completed";
+"chat.phase.failed" = "Failed";
+"chat.phase.cancelled" = "Cancelled";
+"chat.phase.interrupted" = "Interrupted";
+
+/* Manus-style chat — English */
+
+"chat.emptyTitle" = "How can I help you?";
+"chat.addProvider" = "Add provider";
+"chat.manageProviders" = "Manage providers";
+"chat.searchSessions" = "Search sessions";
+"chat.noSessions" = "No conversations yet";
+"chat.untitled" = "New conversation";
+"chat.composer.menu" = "Composer menu";
+
+/* V2 — English */
+
+"chat.phase.responding" = "Thinking…";
+"chat.attachments.add" = "Attach photos";
+"chat.attachments.count" = "%d photos attached";
+"chat.composer.agentMode" = "Agent";
+"chat.composer.chatMode" = "Chat";
+"chat.composer.agentMode.a11y" = "Agent mode";
+"chat.drawer.sections" = "WORKSPACE";
+"chat.thinking" = "Astral is thinking";
+
+/* V3 — English */
+
+"chat.today" = "Today";
+"chat.yesterday" = "Yesterday";
+"chat.history.today" = "Today";
+"chat.history.yesterday" = "Yesterday";
+"chat.history.thisWeek" = "This Week";
+"chat.history.earlier" = "Earlier";
+"chat.slash.none" = "No matching skill";
+"chat.models" = "Models";
+"chat.refreshModels" = "Refresh models";
+"chat.skillArmed" = "Skill active";
+
+/* V3.1 — English */
+
+"chat.attachFile" = "Attach file";
+"chat.attachments.remove" = "Remove attachment";
+
+/* V3.5 — English */
+
+"sandbox.terminal" = "Terminal";
+
+/* V3.6 — task board + tools warning (English) */
+
+"chat.tasks" = "Agent tasks";
+"chat.toolsDropped" = "This model/provider rejected the tool schemas — the reply was generated without tools (plain chat). Switch to a model that supports function calling to get the full agent.";
+
+/* V4.5.2 — Astra Computer bar (English) */
+
+"computer.barTitle" = "Astra Computer";
+"computer.runningPrefix" = "running:";
+"computer.failedPrefix" = "failed:";
+"computer.idleLocal" = "astra-os · ready";
+"computer.idleCloud" = "Ubuntu cloud · connected";
+"computer.bootingCloud" = "Booting the Ubuntu cloud computer…";
+"computer.poweringOff" = "Powering off — work finished";
+"computer.modeLocal" = "Local";
+"computer.modeCloud" = "Cloud";
+"chat.screenshot.title" = "Screenshot";
+"chat.screenshot.subtitle" = "From the page the agent is on";
+"chat.screenshot.a11y" = "Screenshot from the agent's browser";
+"quick.badge" = "Quick Launch";
+"quick.title" = "What should Astral do?";
+"quick.subtitle" = "Type a task or a question — send it and Astral takes over.";
+"quick.placeholder" = "Type a task…";
+"quick.swipeHint" = "Swipe down to close";

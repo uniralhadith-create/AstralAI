@@ -1,0 +1,51 @@
+/* Files strings — Arabic */
+
+"files.title" = "ملفات مساحة العمل";
+"files.count" = "%d ملف";
+
+"files.empty" = "لا توجد ملفات بعد";
+"files.emptyHint" = "اطلب من الوكيل إنشاء مستندات أو أكواد أو تقارير — كل ما ينتجه يظهر هنا.";
+
+"files.sort" = "ترتيب حسب";
+"files.sort.name" = "الاسم";
+"files.sort.date" = "تاريخ التعديل";
+"files.sort.size" = "الحجم";
+
+"files.preview" = "معاينة";
+"files.deleteTitle" = "حذف هذا الملف؟";
+"files.deleteMessage" = "سيُحذف الملف نهائياً من مساحة العمل، ويمكن للوكيل إنشاؤه من جديد في أي وقت.";
+"files.preview.unreadable" = "تعذّر عرض هذا الملف.";
+
+/* V3.5 — astra-os (العربية) */
+
+"sandbox.terminal" = "الطرفية";
+"sandbox.welcome" = "بيئة عمل أسترال — ملفاتك ومساحة عمل الوكيل الحيّة، جهاز واحد لكما.";
+"sandbox.placeholder" = "نفّذ أمرًا…";
+"sandbox.run" = "تنفيذ";
+"sandbox.clear" = "مسح السجل";
+"sandbox.working" = "جارٍ التنفيذ…";
+"sandbox.exitMeta" = "خروج %d · %.2fs";
+"sandbox.expand" = "عرض الكل";
+"sandbox.collapse" = "عرض أقل";
+
+/* V3.6 — سجل نشاط الوكيل (العربية) */
+
+"sandbox.tab.agent" = "الوكيل";
+"sandbox.tab.shell" = "الشل";
+"sandbox.activity.title" = "نشاط الوكيل المباشر";
+"sandbox.activity.empty" = "كل اللي الوكيل بيعمله بيظهر هنا لحظة بلحظة — بحث ويب، قراءة صفحات، متصفح، أوامر، ملفات وكود — زي كونسول Claude Code. ابعتله مهمة وشوفه بيشتغل.";
+"sandbox.computerIdle" = "الكمبيوتر غير نشط";
+
+/* Cloud terminal — Arabic (V4.0) */
+"sandbox.tab.cloud" = "السحابي";
+"sandbox.cloudBooting" = "جارٍ التنفيذ على الجهاز السحابي…";
+"sandbox.cloudWelcome" = "جهاز Ubuntu Linux حقيقي لك ولوكيلك. كل شيء مسموح: apt و python3 و git و ffmpeg… يعمل الجهاز عند أول استخدام ويُطفأ عند الخمول.";
+"sandbox.cloudPlaceholder" = "نفّذ أمر لينكس حقيقي…";
+
+/* V4.5.2 — projects + import (Arabic) */
+
+"files.newProjectTitle" = "مشروع جديد";
+"files.newProjectPlaceholder" = "اسم المشروع";
+"files.newProjectMessage" = "هيتعمل مجلد مشروع في مساحة العمل — تشتغل انت والوكيل جواه مع بعض.";
+"files.projectReadme" = "مساحة عمل المشروع — أُنشئت من تبويب الملفات.";
+"files.import" = "استيراد ملفات لمساحة العمل";

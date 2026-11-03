@@ -1,0 +1,95 @@
+/* Chat strings — Arabic */
+
+"chat.tagline" = "وكيلك الذكي المستقل — يُخطّط ويتصفّح ويكتب الأكواد ويسلّم ملفات حقيقية أمام عينيك.";
+
+"chat.composerPlaceholder" = "اكتب رسالتك إلى أسترال…";
+
+"chat.send" = "إرسال";
+"chat.newChat" = "محادثة جديدة";
+"chat.sessions" = "المحادثات";
+"chat.deleteChat" = "حذف %@";
+"chat.plan" = "خطة التنفيذ";
+"chat.tool" = "أداة";
+
+"chat.suggestions.news.title" = "ملخص أحدث أخبار الذكاء الاصطناعي";
+"chat.suggestions.trip.title" = "خطّط رحلة ٣ أيام";
+"chat.suggestions.script.title" = "اكتب سكربت بايثون";
+"chat.suggestions.compare.title" = "قارن أفضل الهواتف";
+
+"chat.phase.idle" = "خامل";
+"chat.phase.planning" = "يُخطّط";
+"chat.phase.executing" = "ينفّذ";
+"chat.phase.merging" = "يدمج النتائج";
+"chat.phase.waitingUser" = "بانتظارك";
+"chat.phase.completed" = "اكتمل";
+"chat.phase.failed" = "فشل";
+"chat.phase.cancelled" = "أُلغي";
+"chat.phase.interrupted" = "انقطع";
+
+/* Manus-style chat — Arabic */
+
+"chat.emptyTitle" = "كيف يمكنني مساعدتك؟";
+"chat.addProvider" = "إضافة مزود";
+"chat.manageProviders" = "إدارة المزودين";
+"chat.searchSessions" = "ابحث في المحادثات";
+"chat.noSessions" = "لا توجد محادثات بعد";
+"chat.untitled" = "محادثة جديدة";
+"chat.composer.menu" = "قائمة الصندوق";
+
+/* V2 — Arabic */
+
+"chat.phase.responding" = "يفكر…";
+"chat.attachments.add" = "إضافة صور";
+"chat.attachments.count" = "%d صورة مرفقة";
+"chat.composer.agentMode" = "وكيل";
+"chat.composer.chatMode" = "محادثة";
+"chat.composer.agentMode.a11y" = "وضع الوكيل";
+"chat.drawer.sections" = "مساحة العمل";
+"chat.thinking" = "أسترال يفكر";
+
+/* V3 — Arabic */
+
+"chat.today" = "اليوم";
+"chat.yesterday" = "أمس";
+"chat.history.today" = "اليوم";
+"chat.history.yesterday" = "أمس";
+"chat.history.thisWeek" = "هذا الأسبوع";
+"chat.history.earlier" = "أقدم";
+"chat.slash.none" = "لا توجد مهارة مطابقة";
+"chat.models" = "النماذج";
+"chat.refreshModels" = "تحديث النماذج";
+"chat.skillArmed" = "مهارة مفعّلة";
+
+/* V3.1 — العربية */
+
+"chat.attachFile" = "إرفاق ملف";
+"chat.attachments.remove" = "إزالة المرفق";
+
+/* V3.5 — العربية */
+
+"sandbox.terminal" = "الطرفية";
+
+/* V3.6 — لوحة المهام + تحذير الأدوات (العربية) */
+
+"chat.tasks" = "مهام الوكيل";
+"chat.toolsDropped" = "الموديل أو المزود ده رفض مخططات الأدوات — الرد اتعمل من غير أدوات (شات عادي). غيّر لموديل يدعم الـ Function Calling عشان تجرب الوكيل الكامل.";
+
+/* V4.5.2 — Astra Computer bar (Arabic) */
+
+"computer.barTitle" = "كمبيوتر أسترا";
+"computer.runningPrefix" = "تنفيذ:";
+"computer.failedPrefix" = "فشل:";
+"computer.idleLocal" = "astra-os · جاهز";
+"computer.idleCloud" = "أوبونتو السحابي · متصل";
+"computer.bootingCloud" = "جاري تشغيل كمبيوتر أوبونتو السحابي…";
+"computer.poweringOff" = "إيقاف التشغيل — الشغل خلص";
+"computer.modeLocal" = "محلي";
+"computer.modeCloud" = "سحابي";
+"chat.screenshot.title" = "لقطة شاشة";
+"chat.screenshot.subtitle" = "من الصفحة التي يتصفحها الوكيل";
+"chat.screenshot.a11y" = "لقطة شاشة من متصفح الوكيل";
+"quick.badge" = "التشغيل السريع";
+"quick.title" = "ماذا تريد من أسترا؟";
+"quick.subtitle" = "اكتب مهمة أو سؤالاً — أرسلها وسيستلمها أسترا فوراً.";
+"quick.placeholder" = "اكتب مهمة…";
+"quick.swipeHint" = "اسحب لأسفل للإغلاق";

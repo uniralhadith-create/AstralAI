@@ -1,0 +1,126 @@
+/* Settings strings — Arabic */
+
+"settings.title" = "الإعدادات";
+"settings.language" = "اللغة";
+"settings.providers" = "مزودو الذكاء الاصطناعي";
+"settings.noProviders" = "لا توجد مزودات بعد";
+"settings.noProvidersHint" = "أضف مزودًا متوافقًا مع OpenAI أو مزودًا مخصصًا بالكامل لبدء استخدام الوكيل.";
+"settings.addProvider" = "إضافة مزود";
+"settings.editProvider" = "تعديل المزود";
+"settings.untitled" = "مزود بدون اسم";
+"settings.deleteProvider" = "حذف المزود؟";
+"settings.deleteProviderHint" = "سيؤدي هذا إلى إزالة المزود ومفتاح API الخاص به من هذا الجهاز.";
+
+"settings.basics" = "الأساسيات";
+"settings.name" = "الاسم";
+"settings.nameRequired" = "الاسم مطلوب.";
+"settings.baseURL" = "عنوان URL الأساسي";
+"settings.urlRequired" = "عنوان URL الأساسي مطلوب.";
+"settings.protocol" = "البروتوكول";
+"settings.protocolOpenAI" = "متوافق مع OpenAI";
+"settings.protocolCustom" = "مخصص";
+
+"settings.apiKey" = "مفتاح API";
+"settings.keySaved" = "تم حفظ المفتاح — أدخل مفتاحًا جديدًا لاستبداله";
+"settings.keyHint" = "يُخزَّن بأمان في سلسلة مفاتيح iOS ولا يغادر جهازك أبدًا.";
+
+"settings.models" = "النماذج";
+"settings.modelMain" = "الرئيسي";
+"settings.modelPlanner" = "المخطِّط";
+"settings.modelSubAgent" = "الوكيل الفرعي";
+"settings.applyTo" = "تعيين النموذج المكتشف إلى";
+"settings.discoverModels" = "اكتشاف النماذج";
+"settings.discovering" = "جارٍ الاكتشاف…";
+"settings.noModels" = "لم يتم العثور على نماذج";
+"settings.searchModels" = "ابحث في النماذج";
+
+"settings.testConnection" = "اختبار الاتصال";
+"settings.testing" = "جارٍ الاختبار…";
+"settings.testOk" = "تم الاتصال خلال %ld م.ث";
+
+"settings.advanced" = "خيارات متقدمة";
+"settings.temperature" = "درجة الحرارة";
+"settings.maxTokens" = "الحد الأقصى للرموز";
+"settings.timeout" = "المهلة (ثوانٍ)";
+"settings.sendKeyForModels" = "إرسال مفتاح API عند سرد النماذج";
+"settings.customNote" = "تُطبَّق المسارات والخيارات أدناه على البروتوكول المخصص فقط.";
+
+"settings.chatPath" = "مسار المحادثة";
+"settings.modelsPath" = "مسار النماذج";
+"settings.method" = "طريقة HTTP";
+"settings.authStyle" = "المصادقة";
+"settings.authBearer" = "رمز Bearer";
+"settings.authCustomHeader" = "ترويسة مخصصة";
+"settings.authNone" = "بدون";
+"settings.authHeaderName" = "اسم ترويسة المصادقة";
+"settings.authValueFormat" = "صيغة قيمة المصادقة";
+"settings.streamFormat" = "صيغة البث";
+"settings.streamSSE" = "SSE";
+"settings.streamNDJSON" = "NDJSON";
+"settings.streamNone" = "استجابة واحدة";
+"settings.streamTextPath" = "مسار نص البث";
+"settings.fullTextPath" = "مسار النص الكامل";
+"settings.toolCallsPath" = "مسار استدعاءات الأدوات";
+"settings.finishPath" = "مسار سبب الانتهاء";
+"settings.modelsIDPath" = "مسار معرّفات النماذج";
+
+"settings.headers" = "ترويسات إضافية";
+"settings.addHeader" = "إضافة ترويسة";
+"settings.headerKey" = "الترويسة";
+"settings.headerValue" = "القيمة";
+"settings.extraBody" = "جسم إضافي (كائن JSON)";
+"settings.invalidJSON" = "JSON غير صالح.";
+
+"settings.agentBehavior" = "سلوك الوكيل";
+"settings.maxSteps" = "الحد الأقصى للخطوات";
+"settings.allowParallel" = "السماح بالوكلاء الفرعيين المتوازيين";
+"settings.autoNotify" = "أخبرني عند اكتمال المهام";
+
+"settings.about" = "حول التطبيق";
+"settings.save" = "حفظ";
+"settings.cancel" = "إلغاء";
+"settings.providerSaved" = "تم حفظ المزود";
+
+/* Provider presets — Arabic */
+
+"settings.presets" = "إعداد سريع — اختر مزوداً";
+"settings.bedrockKeyHint" = "الصق بيانات AWS بصيغة ACCESS_KEY_ID:SECRET_ACCESS_KEY (مستخدم IAM بصلاحية AmazonBedrockFullAccess). تُؤخذ المنطقة من الرابط.";
+
+/* Cloud computer — Arabic (V4.0) */
+"settings.toolsNative" = "أدوات أصلية";
+"settings.toolsText" = "بروتوكول نصي";
+"settings.cloudComputer" = "الكمبيوتر السحابي";
+"settings.cloudComputerHint" = "يمنح الوكيل كمبيوتر Ubuntu Linux حقيقي في السحابة (E2B) — bash كامل، apt، بايثون مع pip، git وأي شيء آخر. الملفات ترجع لآيفونك تلقائيًا.";
+"settings.cloudSetup" = "اربط لينكس السحابي";
+"settings.actionButton" = "زر الإجراء";
+"settings.actionButtonHint" = "زر الإجراء (آيفون 15 برو وما بعده) — اسأل أسترا من فوق أي شاشة، بدون فتح التطبيق نهائياً";
+"settings.actionButton.step1" = "افتح إعدادات الآيفون ← Action Button.";
+"settings.actionButton.step2" = "اختر Shortcut ← ستجد أسترا — Quick Task جاهزة مباشرة (بدون بناء أي اختصار).";
+"settings.actionButton.step3" = "اضغط زر الإجراء واكتب مهمتك — إجابة أسترا تظهر فوق الشاشة الحالية فوراً، والتطبيق لا يُفتح أبداً.";
+"settings.actionButton.try" = "جرّب التشغيل السريع";
+"settings.cloudDisconnect" = "فصل الكمبيوتر السحابي";
+"settings.cloudConnected" = "لينكس السحابي متصل";
+"settings.cloudConnectedDetail" = "يمكن للوكيل الآن تشغيل أي شيء على جهاز Ubuntu حقيقي.";
+"settings.cloudOff" = "الجهاز مطفأ — يعمل عند أول مهمة";
+"settings.cloudStarting" = "جارٍ تشغيل أوبونتو…";
+"settings.cloudRunning" = "أوبونتو يعمل";
+"settings.cloudFailed" = "خطأ في الاتصال";
+"settings.cloudTitle" = "كمبيوتر حقيقي لذكائك الاصطناعي";
+"settings.cloudIntro" = "اربط كمبيوتر Ubuntu Linux سحابي حقيقي (بتقنية E2B — نفس البنية التي تستخدمها Manus). يحصل وكيلك على نظام تشغيل كامل: bash حقيقي، حزم apt، بايثون مع pip، git، ترجمة برامج — كل ما لا يستطيع الآيفون تشغيله محليًا. يقوم أسترال بتشغيله عند الحاجة وإطفائه تلقائيًا عند الخمول.";
+"settings.cloudGetKey" = "احصل على مفتاح API مجاني من";
+"settings.cloudAPIKey" = "مفتاح E2B API";
+"settings.cloudKeyFooter" = "يُحفظ في سلسلة مفاتيح الآيفون فقط. أنشئ حسابًا مجانيًا على e2b.dev، انسخ مفتاح API والصقه هنا.";
+"settings.cloudTesting" = "جارٍ تشغيل جهاز تجريبي…";
+"settings.cloudTestAndSave" = "اختبار وربط";
+"settings.cloudReady" = "لينكس السحابي جاهز. ستحصل طرفية الوكيل على تبويب سحابي.";
+
+/* V4.5.2 — computer mode switch + key status (Arabic) */
+
+"settings.modeTitle" = "الكمبيوتر";
+"settings.modeIntro" = "اختار الجهاز اللي التطبيق كله يشتغل عليه.";
+"settings.modeLocal" = "محلي (آيفون)";
+"settings.modeCloud" = "سحابي (أوبونتو)";
+"settings.modeFooter" = "محلي: بيئة astra-os على جهازك — خاصة وفورية. سحابي: كمبيوتر أوبونتو لينكس حقيقي (E2B) — بشل كامل وapt وpip ومعالجة تقيلة، وبيقفل تلقائياً بعد كل شغل يخلص.";
+"settings.cloudKeyBundled" = "مستخدم مفتاح أسترا المدمج";
+"settings.cloudKeyCustom" = "مستخدم مفتاح E2B الخاص بيك";
+"settings.cloudAutoOff" = "الكمبيوتر السحابي بيقفل تلقائياً أول ما الوكيل يخلص الشغل، فما بيتمحرقش رصيدك وهو فاضي.";

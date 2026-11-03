@@ -1,0 +1,31 @@
+/* Skills strings — Arabic */
+
+"skills.title" = "المهارات";
+"skills.subtitle" = "المهارات المفعّلة تعلّم الوكيل سلوكيات خبيرة جديدة — بحث وبرمجة وتحليل وغيرها.";
+"skills.activeCount" = "%d مهارة مفعّلة";
+"skills.installed" = "المهارات المثبتة";
+"skills.library" = "مكتبة المهارات";
+"skills.empty" = "لا توجد مهارات مثبتة بعد. أضف واحدة من المكتبة بالأسفل، أو نزّلها من رابط، أو أنشئ مهارتك بنفسك.";
+"skills.add" = "إضافة مهارة";
+"skills.addHint" = "الصق رابط ملف JSON لمهارة Astral (مهارة واحدة أو قائمة).";
+"skills.added" = "تمت إضافة \"%@\"";
+"skills.downloaded" = "تم تنزيل %d مهارة";
+"skills.imported" = "تم استيراد %d مهارة";
+"skills.create" = "مهارة جديدة";
+"skills.createHint" = "اكتب اسماً وملخصاً قصيراً والتعليمات التي يتبعها النموذج عند تفعيل هذه المهارة.";
+"skills.importFile" = "استيراد من ملف";
+"skills.import.hint" = "استورد ملفات ‎.skill.skill‎ أو ‎.skill‎ أو JSON";
+"skills.name" = "الاسم";
+"skills.namePlaceholder" = "مثال: خبير سير ذاتية";
+"skills.summaryField" = "الملخص";
+"skills.summaryPlaceholder" = "سطر واحد يصف ما تفعله هذه المهارة";
+"skills.instructions" = "التعليمات";
+"skills.tools" = "الأدوات المستخدمة";
+"skills.enabled" = "مفعّلة";
+"skills.uninstall" = "إزالة";
+"skills.addLabel" = "إضافة %@";
+"skills.composer.none" = "المهارات";
+"skills.composer.count" = "%d مهارات";
+"skills.manage" = "إدارة المهارات";
+"skills.error.name" = "أدخل اسماً للمهارة.";
+"skills.error.instructions" = "أدخل التعليمات التي يتبعها النموذج.";

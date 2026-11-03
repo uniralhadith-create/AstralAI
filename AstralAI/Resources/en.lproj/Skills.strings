@@ -1,0 +1,31 @@
+/* Skills strings — English */
+
+"skills.title" = "Skills";
+"skills.subtitle" = "Enabled skills teach the agent new expert behaviors — research, coding, analysis and more.";
+"skills.activeCount" = "%d skill(s) active";
+"skills.installed" = "Installed skills";
+"skills.library" = "Skill library";
+"skills.empty" = "No skills installed yet. Add one from the library below, download from a URL, or create your own.";
+"skills.add" = "Add a skill";
+"skills.addHint" = "Paste a link to an Astral skill JSON file (a single skill or a list).";
+"skills.added" = "Added \"%@\"";
+"skills.downloaded" = "Downloaded %d skill(s)";
+"skills.imported" = "Imported %d skill(s)";
+"skills.create" = "New skill";
+"skills.createHint" = "Write a name, a short summary and the instructions the model should follow when this skill is active.";
+"skills.importFile" = "Import from file";
+"skills.import.hint" = "Import .skill.skill, .skill or JSON files";
+"skills.name" = "Name";
+"skills.namePlaceholder" = "e.g. Resume Expert";
+"skills.summaryField" = "Summary";
+"skills.summaryPlaceholder" = "One line describing what this skill does";
+"skills.instructions" = "Instructions";
+"skills.tools" = "Tools used";
+"skills.enabled" = "Enabled";
+"skills.uninstall" = "Uninstall";
+"skills.addLabel" = "Add %@";
+"skills.composer.none" = "Skills";
+"skills.composer.count" = "%d skills";
+"skills.manage" = "Manage skills";
+"skills.error.name" = "Enter a name for the skill.";
+"skills.error.instructions" = "Enter the instructions the model should follow.";

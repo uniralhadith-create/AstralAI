@@ -1,0 +1,51 @@
+/* Files strings — English */
+
+"files.title" = "Workspace files";
+"files.count" = "%d files";
+
+"files.empty" = "No files yet";
+"files.emptyHint" = "Ask the agent to create documents, code or reports — everything it produces lands here.";
+
+"files.sort" = "Sort by";
+"files.sort.name" = "Name";
+"files.sort.date" = "Date modified";
+"files.sort.size" = "Size";
+
+"files.preview" = "Preview";
+"files.deleteTitle" = "Delete this file?";
+"files.deleteMessage" = "This permanently removes the file from the workspace. The agent can always regenerate it.";
+"files.preview.unreadable" = "This file could not be previewed.";
+
+/* V3.5 — astra-os (English) */
+
+"sandbox.terminal" = "Terminal";
+"sandbox.welcome" = "The Astral work environment — your files and the agent's live workspace, one machine.";
+"sandbox.placeholder" = "Run a command…";
+"sandbox.run" = "Run";
+"sandbox.clear" = "Clear history";
+"sandbox.working" = "running…";
+"sandbox.exitMeta" = "exit %d · %.2fs";
+"sandbox.expand" = "show all";
+"sandbox.collapse" = "show less";
+
+/* V3.6 — agent activity feed (English) */
+
+"sandbox.tab.agent" = "Agent";
+"sandbox.tab.shell" = "Shell";
+"sandbox.activity.title" = "Live agent activity";
+"sandbox.activity.empty" = "Everything the agent does appears here in real time — web searches, page reads, browser actions, shell commands, files and code — like a Claude Code console. Send it a task and watch it work.";
+"sandbox.computerIdle" = "The computer is idle";
+
+/* Cloud terminal — English (V4.0) */
+"sandbox.tab.cloud" = "Cloud";
+"sandbox.cloudBooting" = "running on the cloud machine…";
+"sandbox.cloudWelcome" = "A real Ubuntu Linux machine for you and your agent. Anything goes: apt, python3, git, ffmpeg… The machine boots on first use and shuts down when idle.";
+"sandbox.cloudPlaceholder" = "Run a real Linux command…";
+
+/* V4.5.2 — projects + import (English) */
+
+"files.newProjectTitle" = "New Project";
+"files.newProjectPlaceholder" = "Project name";
+"files.newProjectMessage" = "A project folder is created in the workspace — you and the agent work inside it together.";
+"files.projectReadme" = "Project workspace — created from the Files tab.";
+"files.import" = "Import files into the workspace";

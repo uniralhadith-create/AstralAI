@@ -1,0 +1,37 @@
+Astral AI — Software License
+Copyright (c) 2026 Tariq El-Fares. All rights reserved.
+Company: UNIRAL.
+
+1. Grant of personal use.
+   Permission is granted to any person who obtains a copy of this software
+   ("Astral AI") and its source code to build, compile and install it on
+   devices they own or control, and to modify it for such personal use,
+   provided that this notice and the attribution below are preserved.
+
+2. Redistribution.
+   Redistribution of the source code, in whole or in part, is permitted
+   provided that: (a) the above copyright notice and this license are
+   included in all copies or substantial portions; and (b) the attribution
+   "Astral AI — Tariq El-Fares / UNIRAL" is retained in the software,
+   its documentation and any About screen.
+
+3. Restrictions.
+   You may not sell, sublicense, or offer this software as a paid product
+   without prior written permission from the copyright holder. You may not
+   remove or obscure the developer attribution.
+
+4. No warranty.
+   THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+   FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THIS
+   SOFTWARE.
+
+5. Third-party components.
+   This software depends on ZIPFoundation (MIT License, © Thomas Zoechling),
+   which remains governed by its own license. No other third-party code is
+   bundled.
+
+Attribution & contact:
+  Developer: Tariq El-Fares
+  Company: UNIRAL
+  Instagram: https://instagram.com/astral.tariq

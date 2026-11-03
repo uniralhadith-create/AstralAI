@@ -1,0 +1,58 @@
+/* Shared strings — English */
+
+"app.name" = "Astral AI";
+"tab.chat" = "Chat";
+"tab.browser" = "Browser";
+"tab.files" = "Files";
+"tab.settings" = "Settings";
+"tab.bar" = "Main navigation";
+
+"lang.system" = "System";
+
+"status.working" = "Working";
+
+"common.ok" = "OK";
+"common.cancel" = "Cancel";
+"common.done" = "Done";
+"common.create" = "Create";
+"common.delete" = "Delete";
+"common.share" = "Share";
+"common.stop" = "Stop";
+"common.copy" = "Copy";
+"common.copied" = "Copied";
+"common.retry" = "Retry";
+"common.error" = "Error";
+"common.loading" = "Loading";
+"common.search" = "Search";
+"common.save" = "Save";
+"common.add" = "Add";
+"common.edit" = "Edit";
+"common.close" = "Close";
+"common.continue" = "Continue";
+"common.open" = "Open";
+"common.refresh" = "Refresh";
+"common.none" = "None";
+"common.settings" = "Settings";
+"common.enabled" = "Enabled";
+"common.disabled" = "Disabled";
+
+/* Provider connection errors — English */
+
+"error.noProvider" = "No AI provider configured yet. Open Settings → Providers to add one.";
+"error.invalidURL" = "Invalid provider URL";
+"error.unauthorized" = "Authentication failed. Check that your API key is valid and has credit.";
+"error.rateLimited" = "Provider rate limit reached. Wait a moment and try again.";
+"error.badResponse" = "Provider error";
+"error.network" = "Connection error";
+"error.decoding" = "Could not read the model output";
+"error.cancelled" = "The request was cancelled.";
+
+/* Tabs — English */
+
+"tab.skills" = "Skills";
+
+/* V2/V3 — English */
+
+"app.versionBadge" = "V5.0.0 · Version 5.0.0";
+
+"common.back" = "Back";
