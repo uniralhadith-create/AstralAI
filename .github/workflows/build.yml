@@ -8,16 +8,20 @@ on:
 
 jobs:
   build:
-    # macos-15 ships Xcode 26 (iOS 26 SDK) — REQUIRED for the native iOS 26/27
+    # Xcode 26+ (iOS 26 SDK) is REQUIRED for the native iOS 26/27
     # `glassEffect` Liquid Glass to be compiled into the binary (the old repo
     # that rendered real Liquid Glass built on macos-15 too). macos-14 only
     # has Xcode 16.2, which compiles the glass API out and ships the fallback.
-    runs-on: macos-15
+    # Two Xcode-26-capable images race: free-tier macos-15/26 provisioning
+    # intermittently hangs ~15 min and self-cancels, so whichever image boots
+    # first produces the IPA (fail-fast disabled on purpose).
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-latest]
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
-    concurrency:
-      group: build-${{ github.ref }}
-      cancel-in-progress: true
     timeout-minutes: 90
 
     steps:
@@ -141,7 +145,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: AstralAI-V5.0.0-ipa
+          name: AstralAI-V5.0.0-ipa-${{ matrix.runner }}
           path: |
             *.ipa
           if-no-files-found: warn
