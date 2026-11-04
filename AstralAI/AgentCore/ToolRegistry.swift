@@ -36,6 +36,7 @@ final class ToolRegistry {
             BrowserScrollTool(),
             BrowserBackTool(),
             BrowserScreenshotTool(),
+            SendVideoTool(),
             FileWriteTool(),
             FileReadTool(),
             FileMkdirTool(),
@@ -119,14 +120,10 @@ final class ToolRegistry {
                 duration: 0)
             return ToolResult(content: "Unknown tool \(call.name)", isError: true)
         }
-        // Cooperative cancellation: when the turn was stopped, fail fast
-        // instead of dispatching another tool task into the race.
         if Task.isCancelled {
             return ToolResult(content: "Error: tool \(call.name) cancelled", isError: true)
         }
         let context = makeContext(session: session, isSubAgent: isSubAgent)
-        // V4.6.0: tools that produce deliverables (browser_screenshot)
-        // register them against the exact call.
         context.callID = call.id
 
         let startedAt = Date()
@@ -167,11 +164,9 @@ final class ToolRegistry {
         }
     }
 
-    /// The human-readable primary argument of a tool call, used as the
-    /// activity-feed title (the command, the query, the URL, the path…).
     private static func activityTitle(for call: ToolCall) -> String {
         let arguments = call.parsedArguments
-        for key in ["command", "query", "url", "path", "file_path", "filename", "code"] {
+        for key in ["command", "query", "url", "path", "title", "file_path", "filename", "code"] {
             if let value = arguments[key]?.stringValue, !value.isEmpty {
                 return value
             }

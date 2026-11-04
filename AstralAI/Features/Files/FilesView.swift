@@ -1,7 +1,7 @@
 import SwiftUI
 import Combine
 
-// MARK: - File kind styling (V5 Lucide Vector Icons)
+// MARK: - File kind styling
 
 enum FileKindStyle {
     static func astralIcon(for kind: FileKind) -> String {
@@ -12,6 +12,7 @@ enum FileKindStyle {
         case .pdf: return AstralIcons.file
         case .spreadsheet: return AstralIcons.table
         case .image: return AstralIcons.image
+        case .video: return AstralIcons.play
         case .archive: return AstralIcons.package
         case .web: return AstralIcons.browser
         case .other: return AstralIcons.file
@@ -26,6 +27,7 @@ enum FileKindStyle {
         case .pdf: return "doc.fill"
         case .spreadsheet: return "tablecells"
         case .image: return "photo"
+        case .video: return "video.fill"
         case .archive: return "doc.zipper"
         case .web: return "safari"
         case .other: return "doc"
@@ -40,6 +42,7 @@ enum FileKindStyle {
         case .pdf: return AstralTheme.danger
         case .spreadsheet: return AstralTheme.success
         case .image: return AstralTheme.warning
+        case .video: return AstralTheme.orbGreen
         case .archive: return AstralTheme.nebulaViolet
         case .web: return AstralTheme.auroraCyan
         case .other: return AstralTheme.moonDust
@@ -47,7 +50,7 @@ enum FileKindStyle {
     }
 }
 
-// MARK: - Files view (V5 Liquid Glass Workspace)
+// MARK: - Files view
 
 struct FilesView: View {
     @EnvironmentObject private var env: AppEnvironment
@@ -152,9 +155,13 @@ struct FilesView: View {
         for url in urls {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
-            let destination = env.workspace.rootURL.appendingPathComponent(url.lastPathComponent)
-            try? fileManager.removeItem(at: destination)
-            try? fileManager.copyItem(at: url, to: destination)
+            if MediaStore.isVideoFileName(url.lastPathComponent) {
+                _ = MediaStore.saveVideo(at: url, preferredName: url.lastPathComponent, workspaceFolder: "Videos", into: env.workspace)
+            } else {
+                let destination = env.workspace.rootURL.appendingPathComponent(url.lastPathComponent)
+                try? fileManager.removeItem(at: destination)
+                try? fileManager.copyItem(at: url, to: destination)
+            }
         }
         env.workspace.refresh()
     }

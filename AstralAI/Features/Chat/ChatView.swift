@@ -1,13 +1,13 @@
 import SwiftUI
 import Combine
 
-// MARK: - Chat view (V5.0.0 — iOS 27 Liquid Glass Experience)
+// MARK: - Chat view
 
-/// The V5 Liquid Glass chat experience — and the app's only permanent
+/// The Liquid Glass chat experience — and the app's only permanent
 /// screen. A compact floating glass header carrying the in-chat model
 /// switcher, a live turn-status strip with smooth capsule-clipped shimmer,
-/// a date-separated timeline, the V5 composer with "/" skill invocation,
-/// and a zero-waste drawer (date-grouped sessions + a compact 2×2 section
+/// a date-separated timeline, the composer with "/" skill invocation,
+/// and a drawer (date-grouped sessions + a compact 2×2 section
 /// grid with custom vector icons).
 struct ChatView: View {
     @EnvironmentObject private var env: AppEnvironment
@@ -84,9 +84,6 @@ struct ChatView: View {
 
     // MARK: Header
 
-    /// The V5 header — three detached iOS 27 Liquid Glass controls:
-    /// compact circular glass orbs on the sides and a sleek refractive
-    /// capsule model switcher in the center.
     private var headerView: some View {
         HStack(spacing: 8) {
             // Orb 1 — conversation history.
@@ -451,8 +448,8 @@ struct ChatView: View {
                     AstraComputerBar()
                     ComposerView(
                         isStreaming: session.isBusy,
-                        onSend: { text, images, attachments in
-                            session.send(text, images: images, attachments: attachments)
+                        onSend: { text, images, videos, attachments in
+                            session.send(text, images: images, videos: videos, attachments: attachments)
                         },
                         onStop: { session.cancel() })
                 }
@@ -507,7 +504,7 @@ struct ChatView: View {
                             color: AstralTheme.textSecondary,
                             accentColor: AstralTheme.orbGreen,
                             isActive: true)
-                        Text("astra-os 5.0 · /home/astral · root + web")
+                        Text("astra-os · /home/astral · root + web")
                             .font(AstralTheme.mono(10.5))
                             .foregroundStyle(AstralTheme.textSecondary)
                     }
@@ -536,11 +533,11 @@ struct ChatView: View {
                 AstraComputerBar()
                 ComposerView(
                     isStreaming: false,
-                    onSend: { text, images, attachments in
+                    onSend: { text, images, videos, attachments in
                         if let session = env.sessionStore.activeSession, !session.isBusy {
-                            session.send(text, images: images, attachments: attachments)
+                            session.send(text, images: images, videos: videos, attachments: attachments)
                         } else {
-                            startSession(with: text, images: images, attachments: attachments)
+                            startSession(with: text, images: images, videos: videos, attachments: attachments)
                         }
                     },
                     onStop: {})
@@ -553,7 +550,7 @@ struct ChatView: View {
 
     private func suggestionChip(_ suggestion: Suggestion) -> some View {
         Button {
-            startSession(with: suggestion.prompt, images: [], attachments: [])
+            startSession(with: suggestion.prompt, images: [], videos: [], attachments: [])
         } label: {
             HStack(spacing: 10) {
                 ZStack {
@@ -586,7 +583,7 @@ struct ChatView: View {
         .buttonStyle(PressableOrbStyle())
     }
 
-    // MARK: Sessions sidebar (the V5 Liquid Glass drawer)
+    // MARK: Sessions sidebar
 
     @ViewBuilder
     private var sessionsSidebar: some View {
@@ -705,16 +702,9 @@ struct ChatView: View {
                 .interpolation(.high)
                 .frame(width: 28, height: 28)
 
-            Text("Astral AI")
+            Text(AppIdentity.appName)
                 .font(AstralTheme.headline(15))
                 .foregroundStyle(AstralTheme.textPrimary)
-
-            Text(L("app.versionBadge", "Shared"))
-                .font(AstralTheme.mono(9).weight(.semibold))
-                .foregroundStyle(AstralTheme.textSecondary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .liquidCapsule()
 
             Spacer()
 
@@ -912,11 +902,12 @@ struct ChatView: View {
     private func startSession(
         with prompt: String,
         images: [MessageImage],
+        videos: [MessageVideo] = [],
         attachments: [MessageAttachment]
     ) {
         let session = env.sessionStore.newSession()
         env.sessionStore.select(session)
-        session.send(prompt, images: images, attachments: attachments)
+        session.send(prompt, images: images, videos: videos, attachments: attachments)
     }
 
     private static func relativeDate(_ date: Date) -> String {
@@ -926,11 +917,8 @@ struct ChatView: View {
     }
 }
 
-// MARK: - Turn status strip (V5 iOS 27 Liquid Glass — Smooth Capsule Shimmer)
+// MARK: - Turn status strip
 
-/// The V5 live turn status — a detached floating glass pill with a
-/// morphing monochrome orb, phase label, detail line, and a smooth
-/// capsule-masked progress rail with zero sharp or pixelated shimmer edges.
 private struct TurnStatusStrip: View {
     let status: TurnStatus
 
@@ -1014,11 +1002,8 @@ private struct StatusOrb: View {
     }
 }
 
-// MARK: - Task board strip (V5 iOS 27 Liquid Glass — Smooth Feathered Shimmer)
+// MARK: - Task board strip
 
-/// The model's live todo board — rendered in V5 iOS 27 Liquid Glass with
-/// a capsule progress rail and rounded task pills whose shimmer is smoothly
-/// feathered and clipped to a continuous capsule/rounded rectangle.
 private struct TaskBoardStrip: View {
     @ObservedObject var board: AgentTaskBoard
 
@@ -1038,7 +1023,6 @@ private struct TaskBoardStrip: View {
             } label: {
                 VStack(spacing: 9) {
                     HStack(spacing: 10) {
-                        // Liquid capsule count chip.
                         Text("\(board.completedCount)/\(board.tasks.count)")
                             .font(AstralTheme.mono(11).weight(.semibold))
                             .monospacedDigit()

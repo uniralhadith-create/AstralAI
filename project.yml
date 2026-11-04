@@ -93,7 +93,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uniral.astralai
         MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "12"
+        CURRENT_PROJECT_VERSION: "13"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SUPPORTS_MACCATALYST: "NO"
@@ -119,7 +119,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uniral.astralai.widgets
         MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "12"
+        CURRENT_PROJECT_VERSION: "13"
         SKIP_INSTALL: "YES"
 
   ShareExtension:
@@ -148,7 +148,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uniral.astralai.share
         MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "12"
+        CURRENT_PROJECT_VERSION: "13"
         SKIP_INSTALL: "YES"
 
   AstralAITests:

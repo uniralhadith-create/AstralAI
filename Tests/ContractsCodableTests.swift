@@ -252,6 +252,8 @@ final class ContractsCodableTests: XCTestCase {
         XCTAssertEqual(FileKind(fileName: "main.swift"), .code)
         XCTAssertEqual(FileKind(fileName: "x.zip"), .archive)
         XCTAssertEqual(FileKind(fileName: "photo.png"), .image)
+        XCTAssertEqual(FileKind(fileName: "demo.mp4"), .video)
+        XCTAssertEqual(FileKind(fileName: "clip.mov"), .video)
         XCTAssertEqual(FileKind(fileName: "index.html"), .web)
         XCTAssertEqual(FileKind(fileName: "doc.pdf"), .pdf)
         XCTAssertEqual(FileKind(fileName: "trace.log"), .text)
@@ -262,7 +264,7 @@ final class ContractsCodableTests: XCTestCase {
         XCTAssertEqual(FileKind(fileName: "noextension"), .other)
     }
 
-    // MARK: V2 — Message images
+    // MARK: V2 — Message images & videos
 
     func testChatMessageRoundtripWithImages() throws {
         let image = MessageImage(
@@ -278,6 +280,22 @@ final class ContractsCodableTests: XCTestCase {
         XCTAssertEqual(decoded.images?.first?.fileName, "ABC.jpg")
     }
 
+    func testChatMessageRoundtripWithVideos() throws {
+        let video = MessageVideo(
+            id: UUID(uuidString: "22222222-3333-4444-5555-666666666666")!,
+            fileName: "demo.mp4",
+            workspacePath: "Videos/demo.mp4",
+            mimeType: "video/mp4",
+            durationSeconds: 4.0,
+            fileSize: 12000)
+        let message = ChatMessage.user("Check this video", videos: [video])
+
+        let decoded = try roundtrip(message)
+        XCTAssertEqual(decoded.role, .user)
+        XCTAssertEqual(decoded.videos, [video])
+        XCTAssertEqual(decoded.videos?.first?.workspacePath, "Videos/demo.mp4")
+    }
+
     func testChatMessageDecodesV1PayloadWithoutImagesKey() throws {
         // A V1 snapshot: no "images" key at all. Decoding must succeed with
         // images == nil so old conversations keep loading in V2.
@@ -289,6 +307,7 @@ final class ContractsCodableTests: XCTestCase {
         XCTAssertEqual(decoded.content, "hello")
         XCTAssertEqual(decoded.role, .user)
         XCTAssertNil(decoded.images)
+        XCTAssertNil(decoded.videos)
     }
 
     func testChatMessageEncodeOmitsNilImages() throws {
@@ -296,5 +315,6 @@ final class ContractsCodableTests: XCTestCase {
         let data = try JSONEncoder().encode(message)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data, options: []) as? [String: Any])
         XCTAssertFalse(object.keys.contains("images"), "nil images must not be encoded")
+        XCTAssertFalse(object.keys.contains("videos"), "nil videos must not be encoded")
     }
 }

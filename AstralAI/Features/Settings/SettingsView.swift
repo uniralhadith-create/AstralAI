@@ -1,9 +1,9 @@
 import SwiftUI
 
-// MARK: - Settings (V5.0.0 — iOS 27 Liquid Glass Control Center)
+// MARK: - Settings
 
-/// Settings V5: preserves the signature monochrome Astral theme while
-/// organizing all sections into sleek iOS 27 Liquid Glass V5 cards with
+/// Settings: preserves the signature monochrome Astral theme while
+/// organizing all sections into sleek Liquid Glass cards with
 /// custom Lucide vector icons, live status pills, and smooth animations.
 struct SettingsView: View {
     @EnvironmentObject private var env: AppEnvironment
@@ -91,20 +91,10 @@ struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
-                    Text(AppIdentity.appName)
-                        .font(AstralTheme.headline(16))
-                        .foregroundStyle(AstralTheme.textPrimary)
-                    Text(L("app.versionBadge", "Shared"))
-                        .font(AstralTheme.mono(9.5).weight(.semibold))
-                        .foregroundStyle(AstralTheme.orbGreen)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2.5)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(AstralTheme.orbGreen.opacity(0.14)))
-                }
-                Text("astra-os 5.0 · iOS 27 Liquid Glass · AI Agent")
+                Text(AppIdentity.appName)
+                    .font(AstralTheme.headline(16))
+                    .foregroundStyle(AstralTheme.textPrimary)
+                Text("astra-os · Liquid Glass · AI Agent")
                     .font(AstralTheme.mono(10.5))
                     .foregroundStyle(AstralTheme.textSecondary)
                     .lineLimit(1)
@@ -253,7 +243,7 @@ struct SettingsView: View {
             interactive: true)
     }
 
-    // MARK: - Computer (Local astra-os 5.0 + Cloud Ubuntu)
+    // MARK: - Computer (Local astra-os + Cloud Ubuntu)
 
     private var computerSection: some View {
         VStack(alignment: .leading, spacing: AstralTheme.Spacings.s) {

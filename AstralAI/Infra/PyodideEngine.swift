@@ -2,27 +2,12 @@ import Foundation
 import Combine
 import WebKit
 
-// MARK: - Real Python on-device (V4.0)
+// MARK: - Real Python on-device (Bidirectional Workspace Sync)
 
 /// Executes REAL Python on the iPhone through Pyodide (the CPython
-/// WebAssembly build) running inside a hidden WKWebView.
-///
-/// Why a WebView? iOS forbids JIT-less native interpreters from App Store
-/// rules for embedded runtimes is one thing, but WebAssembly is fully
-/// supported by WKWebView - and Pyodide is a complete CPython 3.12 with the
-/// standard library, plus micropip for pure-Python packages.
-///
-/// Lifecycle:
-/// 1. First `run` call boots the engine: a hidden page loads Pyodide from
-///    the CDN (~10 MB, one-time; cached by the system URL cache) or from a
-///    previously downloaded copy in Application Support (offline mode).
-/// 2. `stdout`/`stderr` are redirected into a ring buffer through
-///    `pyodide.setStdout`.
-/// 3. Files created with `open(..., "w")` land in Pyodide's MEMFS; the
-///    `runInWorkspace` mode syncs them into the real workspace afterwards.
-///
-/// The engine is a shared singleton so the (heavy) WASM instance survives
-/// across tool calls within the process lifetime.
+/// WebAssembly build) running inside a hidden WKWebView, with automatic
+/// bidirectional synchronization between Pyodide's MEMFS (`/home/pyodide`)
+/// and the user's Workspace (`WorkspaceStore.shared`).
 @MainActor
 final class PythonEngine: ObservableObject {
 
@@ -51,6 +36,43 @@ final class PythonEngine: ObservableObject {
     window.__astralWrite = function(text, error) {
       window.__astralLog.push({t: text, e: !!error});
       if (window.__astralLog.length > 4000) window.__astralLog.shift();
+    };
+    window.__astralStage = function(relPath, content) {
+      try {
+        const clean = relPath.replace(/^\\/+/, '');
+        const parts = clean.split('/');
+        if (parts.length > 1) {
+          const dir = parts.slice(0, -1).join('/');
+          pyodide.FS.mkdirTree(dir);
+        }
+        pyodide.FS.writeFile(clean, content, {encoding: 'utf8'});
+        return "ok";
+      } catch (e) {
+        return String(e);
+      }
+    };
+    window.__astralCollectFiles = function() {
+      const results = {};
+      function walk(dir, prefix) {
+        let entries = [];
+        try { entries = pyodide.FS.readdir(dir); } catch (e) { return; }
+        for (const name of entries) {
+          if (name === '.' || name === '..' || name.startsWith('.')) continue;
+          const full = dir === '.' ? name : (dir + '/' + name);
+          const rel = prefix ? (prefix + '/' + name) : name;
+          try {
+            const stat = pyodide.FS.stat(full);
+            if (pyodide.FS.isDir(stat.mode)) {
+              walk(full, rel);
+            } else if (pyodide.FS.isFile(stat.mode) && stat.size <= 512000) {
+              const text = pyodide.FS.readFile(full, {encoding: 'utf8'});
+              results[rel] = text;
+            }
+          } catch (e) {}
+        }
+      }
+      walk('.', '');
+      return JSON.stringify(results);
     };
     window.__astralRun = async function(code) {
       window.__astralLog = [];
@@ -91,7 +113,8 @@ final class PythonEngine: ObservableObject {
     }
 
     /// Runs Python source, returning combined stdout + stderr (+ the
-    /// expression result repr when present). Booting is automatic.
+    /// expression result repr when present) and syncing any files created
+    /// in Pyodide back into `WorkspaceStore.shared`.
     func run(
         _ code: String,
         timeout: TimeInterval = 60,
@@ -103,11 +126,11 @@ final class PythonEngine: ObservableObject {
             throw LLMError.badResponse("Python engine is not available.")
         }
 
-        // Stage requested workspace files into the Pyodide FS.
+        // Stage requested workspace files into the Pyodide working directory.
         for (path, content) in workspaceFiles {
-            let safePath = Self.sanitizePath(path)
-            let js = "await pyodide.FS.writeFile(\(Self.jsString(safePath)), \(Self.jsString(content)));"
-            _ = try await evaluate(webView: webView, javascript: js, timeout: timeout)
+            let safePath = Self.sanitizePath(path).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            let js = "window.__astralStage(\(Self.jsString(safePath)), \(Self.jsString(content)))"
+            _ = try? await evaluate(webView: webView, javascript: js, timeout: timeout)
         }
 
         let escaped = Self.jsString(code)
@@ -122,6 +145,25 @@ final class PythonEngine: ObservableObject {
             javascript:
                 "JSON.stringify(window.__astralLog.map(l => ({t: l.t, e: l.e})))",
             timeout: 15)
+
+        // Sync any new/modified files back into WorkspaceStore.shared.
+        if let filesJSON = try? await evaluate(
+            webView: webView,
+            javascript: "window.__astralCollectFiles()",
+            timeout: 15),
+           let data = filesJSON.data(using: .utf8),
+           let exported = (try? JSONSerialization.jsonObject(with: data, options: [])) as? [String: String] {
+            var didWrite = false
+            for (relPath, content) in exported {
+                if workspaceFiles[relPath] != content {
+                    _ = try? WorkspaceStore.shared.write(path: relPath, content: content)
+                    didWrite = true
+                }
+            }
+            if didWrite {
+                NotificationCenter.default.post(name: .sandboxDidChange, object: nil)
+            }
+        }
 
         var output = Self.parseLog(logJSON)
         if let data = resultJSON.data(using: .utf8),
@@ -143,7 +185,7 @@ final class PythonEngine: ObservableObject {
     /// Installs a pure-Python package with micropip (e.g. "requests").
     func install(package: String) async throws -> String {
         try await boot()
-        guard let webView else {
+        guard webView != nil else {
             throw LLMError.badResponse("Python engine is not available.")
         }
         let output = try await run(
@@ -161,7 +203,6 @@ final class PythonEngine: ObservableObject {
         case .failed(let reason):
             throw LLMError.badResponse("Python engine failed to start: \(reason)")
         case .loading:
-            // Wait for the in-flight boot to conclude.
             while true {
                 try Task.checkCancellation()
                 if case .ready = state { return }
@@ -183,12 +224,8 @@ final class PythonEngine: ObservableObject {
         webView.isOpaque = false
         self.webView = webView
 
-        // The page is fully self-contained; Pyodide is fetched by the page
-        // itself from the CDN (first run needs internet; the system cache
-        // usually serves later boots offline).
         webView.loadHTMLString(Self.bootHTML, baseURL: nil)
 
-        // Poll for readiness (script-driven; no message handlers needed).
         let deadline = Date().addingTimeInterval(180)
         while Date() < deadline {
             try Task.checkCancellation()
@@ -240,7 +277,6 @@ final class PythonEngine: ObservableObject {
         }.joined(separator: "\n")
     }
 
-    /// Escapes a Swift string into a JS string literal.
     static func jsString(_ text: String) -> String {
         let escaped = text
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -251,7 +287,6 @@ final class PythonEngine: ObservableObject {
         return "\"\(escaped)\""
     }
 
-    /// Keeps paths inside the Pyodide FS sane.
     static func sanitizePath(_ path: String) -> String {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = trimmed.hasPrefix("/")

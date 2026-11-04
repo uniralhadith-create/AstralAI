@@ -1,16 +1,21 @@
 import Foundation
 import PDFKit
+import AVFoundation
 
 // MARK: - Attachment extractor
 
-/// Turns a picked file into a `MessageAttachment` the model can read.
+/// Turns a picked file into a `MessageAttachment` the model can read and
+/// stages binary/video files into the Workspace.
 ///
 /// Supported:
+/// - Video files (`.mp4`, `.mov`, `.m4v`, `.webm`, `.mkv`, `.avi`): copied
+///   into `Videos/<name>` in the Workspace and inspected via `AVURLAsset`
+///   for duration, resolution, and file size.
 /// - PDF: full text extraction through PDFKit (page by page).
 /// - Text-ish files (txt, md, json, csv, code, xml, yaml, html…): UTF-8
 ///   decode of the whole file.
-/// - Everything else: a descriptive placeholder so the model at least
-///   knows the file exists and can ask the user about it.
+/// - Everything else: copied into `uploads/<name>` with a descriptive
+///   metadata note so the model can inspect it in `/home/astral/uploads/`.
 enum AttachmentExtractor {
 
     /// Hard cap per file — keeps prompts within every provider's context
@@ -25,6 +30,15 @@ enum AttachmentExtractor {
 
     static func extractText(from url: URL) -> String {
         let pathExtension = url.pathExtension.lowercased()
+
+        // Video files: inspect duration & resolution and note Workspace path.
+        let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "webm", "mkv", "avi", "mpeg", "mpg", "3gp"]
+        if videoExtensions.contains(pathExtension) {
+            let asset = AVURLAsset(url: url)
+            let secs = CMTimeGetSeconds(asset.duration)
+            let durStr = (secs.isFinite && secs > 0) ? String(format: "%.1fs", secs) : "unknown duration"
+            return "[Video file \"\(url.lastPathComponent)\" (\(readableSize(of: url)), \(durStr)) — saved in Workspace under Videos/\(url.lastPathComponent)]"
+        }
 
         // PDF: PDFKit extraction, page by page.
         if pathExtension == "pdf" {
@@ -62,7 +76,6 @@ enum AttachmentExtractor {
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return capped(text)
             }
-            // RTF often refuses plain UTF-8 decode; try NSAttributedString.
             if pathExtension == "rtf" {
                 if let attributed = try? NSAttributedString(
                     url: url,

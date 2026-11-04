@@ -19,9 +19,9 @@ enum AgentExecutor {
         var onError: (String?) -> Void = { _ in }
     }
 
-    static let stepSystemPrompt = "You are Astral, an autonomous AI agent executing one step of a plan on iOS, working inside astra-os — your persistent Linux-style work environment at /home/astral (shell commands through the exec tool: ls, cd, cat, echo with > >> redirection, mkdir, rm, cp, mv, grep, find, head, tail, sed, tree, curl, search, python3 (REAL Python via Pyodide), node (REAL JavaScript), pip install (pure-Python packages)). You also have: web_search, web_fetch (read a URL as text), browser_open/click/type/read/scroll/screenshot (interactive websites; browser_screenshot captures the current page and delivers it to the user in chat), file_write/read/list/delete/zip/pdf (workspace files), run_python (real Python with the full standard library), run_javascript, analyze_data, update_tasks (publish your todo list and keep its statuses truthful), create_reminder, create_event, notify_user. When cloud_exec is available, a REAL Ubuntu Linux cloud computer (E2B) can run anything: apt, real pip (numpy/pandas), git, compilation — use it for heavy jobs and pull results back with cloud_file_pull. Real work happens in the shell: create files, organize folders, fetch and process data, run code, save deliverables under /home/astral. Use tools whenever they genuinely help complete the CURRENT step; after each tool result, continue reasoning. Be efficient and avoid redundant calls. When the current step is fully achieved, end your reply with a line starting exactly with STEP_COMPLETE: followed by a concise 2-4 sentence summary. If genuinely blocked after real attempts, end with STEP_BLOCKED: followed by the reason. Never fabricate tool results, command output or web content."
+    static let stepSystemPrompt = "You are Astral AI, an autonomous AI agent executing one step of a plan on iOS, working inside astra-os — your persistent Linux workstation environment at /home/astral (shell commands through the exec tool: ls, cd, cat, echo with > >> redirection, mkdir, rm, cp, mv, grep, find, head, tail, sed, awk, jq, tree, curl, wget, sqlite3, ffmpeg, ffprobe, yt-dlp, search, python3 (REAL Python via Pyodide with workspace sync), node (REAL JavaScript with fs module), pip install). Your identity is strictly 'Astral AI' (never append version numbers to your name). You also have: web_search, web_fetch, browser_open/click/type/read/scroll/screenshot, send_video (send/download/generate videos in chat and save them in the workspace under Videos/), file_write/read/list/delete/zip/pdf, run_python, run_javascript, analyze_data, update_tasks, create_reminder, create_event, notify_user. When cloud_exec is available, a REAL Ubuntu Linux cloud computer (E2B) can run anything: apt, real pip (numpy/pandas), git, compilation — use it for heavy jobs and pull results back with cloud_file_pull. Real work happens in the shell: create files, organize folders, fetch and process data, generate or download videos, run code, save deliverables under /home/astral. When the current step is fully achieved, end your reply with a line starting exactly with STEP_COMPLETE: followed by a concise 2-4 sentence summary. If genuinely blocked after real attempts, end with STEP_BLOCKED: followed by the reason. Never fabricate tool results, command output or web content."
 
-    static let synthesisSystemPrompt = "You are Astral, finalizing a completed multi-step task for the user. You receive the original goal and every step's result. Write the final answer in rich Markdown: open with the direct answer or summary, then key findings, details, data, and links as appropriate. If files were created, add a section titled '## Deliverables' listing each file path. Match the user's language exactly (Arabic request → Arabic answer). Be complete but not bloated."
+    static let synthesisSystemPrompt = "You are Astral AI, finalizing a completed multi-step task for the user. Your identity is strictly 'Astral AI' (never add version numbers to your name). You receive the original goal and every step's result. Write the final answer in rich Markdown: open with the direct answer or summary, then key findings, details, data, and links as appropriate. If files or videos were created, add a section titled '## Deliverables' listing each file path. Match the user's language exactly (Arabic request → Arabic answer). Be complete but not bloated."
 
     /// Appends the enabled-skills instruction block to a base system prompt.
     /// Returns the prompt unchanged when no skills are enabled.
@@ -31,9 +31,6 @@ enum AgentExecutor {
         return base + "\n\n" + block
     }
 
-    /// V4.5.6: raised from 8 to 40 — a runaway safety net, not a budget.
-    /// The model is never told about a limit and the task always gets the
-    /// room it needs (long research chains, deep file work, etc.).
     private static let maxStepRounds = 40
 
     // MARK: Entry point
@@ -73,7 +70,7 @@ enum AgentExecutor {
                       workingPlan.steps[scan].parallelizable,
                       workingPlan.steps[scan].status == .pending {
                     batchIndices.append(scan)
-                    scan += 1
+                    scan = scan + 1
                 }
 
                 if batchIndices.count >= 2 {
@@ -213,19 +210,19 @@ enum AgentExecutor {
                 for call in pendingCalls {
                     let result = await toolRegistry.execute(
                         call: call, session: sessionInfo, isSubAgent: false)
-                    // V4.6.0: screenshot delivery — attach the capture the
-                    // browser_screenshot tool registered for this call.
-                    var delivered: [MessageImage]?
+                    var deliveredImages: [MessageImage]?
                     if call.name == BrowserScreenshotTool.toolName,
                        let capture = ScreenCaptureDelivery.take(callID: call.id) {
-                        delivered = [capture]
+                        deliveredImages = [capture]
                     }
+                    let deliveredVideos = VideoDelivery.take(callID: call.id)
                     let toolMessage = ChatMessage(
                         role: .tool,
                         content: result.content,
                         toolCallId: call.id,
                         name: call.name,
-                        images: delivered)
+                        images: deliveredImages,
+                        videos: deliveredVideos)
                     messages.append(toolMessage)
                     callbacks.onMessage(toolMessage)
                 }
@@ -248,7 +245,6 @@ enum AgentExecutor {
                 let reason = String(accumulated[blockedRange.upperBound...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !blockedRetried {
-                    // One self-correction attempt with an alternative approach.
                     blockedRetried = true
                     messages.append(ChatMessage.assistant(accumulated))
                     messages.append(
@@ -261,7 +257,6 @@ enum AgentExecutor {
                 return (current, messages)
             }
 
-            // No marker: on the final round accept the text, otherwise nudge.
             if round == maxStepRounds - 1 {
                 let trimmed = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.isEmpty {
@@ -280,9 +275,6 @@ enum AgentExecutor {
                 ChatMessage.user("Continue with the current step. When it is fully achieved, end your reply with STEP_COMPLETE: followed by a concise summary. If genuinely blocked, end with STEP_BLOCKED: followed by the reason."))
         }
 
-        // The step finished its tool work without an explicit summary —
-        // accept the last narration the model produced (or a neutral done
-        // note) rather than declaring failure.
         let trimmedNarration = lastNarration.trimmingCharacters(in: .whitespacesAndNewlines)
         current.result = trimmedNarration.isEmpty
             ? "The step completed its work."
@@ -333,7 +325,6 @@ enum AgentExecutor {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            // Synthesis failure degrades to a locally composed summary.
             finalText = ""
         }
 
@@ -345,7 +336,6 @@ enum AgentExecutor {
         return finalText
     }
 
-    /// Deterministic Markdown summary used when the model cannot synthesize.
     private static func localSummary(goal: String, plan: ExecutionPlan) -> String {
         var lines = ["# \(goal)", ""]
         for step in plan.steps {

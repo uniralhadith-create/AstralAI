@@ -1,9 +1,9 @@
 import SwiftUI
 
-// MARK: - Cloud computer setup (V5.0.0 — Liquid Glass Control Room)
+// MARK: - Cloud computer setup
 
 /// The computer control room: switch the whole app between the on-device
-/// astra-os 5.0 machine and the REAL Ubuntu cloud computer (E2B), enter an
+/// astra-os machine and the REAL Ubuntu cloud computer (E2B), enter an
 /// API key, and live-test the boot.
 struct CloudComputerSetupView: View {
     @Environment(\.dismiss) private var dismiss
@@ -76,7 +76,7 @@ struct CloudComputerSetupView: View {
             HStack(spacing: 10) {
                 modeCard(
                     title: L("settings.modeLocal", "Settings"),
-                    caption: "astra-os 5.0 · iPhone",
+                    caption: "astra-os · iPhone",
                     icon: AstralIcons.cpu,
                     selected: mode.mode == .local) {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {

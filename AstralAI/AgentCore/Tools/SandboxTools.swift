@@ -1,8 +1,8 @@
 import Foundation
 
-// MARK: - ExecTool (V5.0.0 — Full Root Linux Workstation Shell)
+// MARK: - ExecTool (Full Root Linux Workstation Shell)
 
-/// The astra-os 5.0 terminal — the agent's primary way of working. Runs any
+/// The astra-os terminal — the agent's primary way of working. Runs any
 /// sandbox shell command inside the persistent `/home/astral` Linux FHS
 /// workspace, or on the cloud Ubuntu microVM when Cloud Mode is enabled.
 @MainActor
@@ -14,22 +14,23 @@ final class ExecTool: AgentTool {
         ToolSpec(
             name: name,
             description:
-                "Run a bash/shell command inside the astra-os 5.0 Linux workstation environment (root@astra-os:/home/astral on the user's device). "
+                "Run a bash/shell command inside the astra-os Linux workstation environment (root@astra-os:/home/astral on the user's device). "
                 + "FULL SHELL: pipes (cmd | cmd), logical chaining (cmd && cmd || fallback; cmd), redirection (> >>), and environment variables ($VAR / export) all work like a real Linux computer. "
-                + "Available commands (60+): ls, ll, cd, pwd, cat, echo, printf, mkdir (-p), rmdir, touch, rm (-rf), cp, mv, ln, grep (-i -n -r -v -c), find (-name), wc, head, tail, "
+                + "Available commands (75+): ls, ll, cd, pwd, cat, echo, printf, mkdir (-p), rmdir, touch, rm (-rf), cp, mv, ln, grep (-i -n -r -v -c), find (-name), wc, head, tail, "
                 + "tree, sed (-i s/pat/repl/g), awk (-F), jq (JSON query & pretty-print), xargs, tee, stat, file, du, date, uname (-a), whoami, id, hostname, neofetch, env, export, unset, "
-                + "df (-h), free (-m), ps (aux), top, lscpu, nproc, uptime, which, sleep, chmod, chown, basename, dirname, realpath, diff, seq, sort (-r -n -u), uniq (-c), cut (-d -f), tr (-d), rev, "
-                + "base64 (-d), md5sum, shasum, sha256sum, history, apt (update | install | list), git (init | status | add | commit | log | clone), zip, unzip, tar, "
+                + "df (-h), free (-m), ps (aux), top, lscpu, nproc, uptime, which, sleep, chmod, chown, basename, dirname, realpath, diff, seq, column (-t), paste, bc, expr, xxd, hexdump, sort (-r -n -u), uniq (-c), cut (-d -f), tr (-d), rev, "
+                + "base64 (-d), md5sum, shasum, sha256sum, history, systemctl, service, crontab, lsof, netstat, ss, apt (update | install | list), git (init | status | add | commit | log | clone), zip, unzip, tar, "
+                + "sqlite3 <db.sqlite> [\"SQL\"] (real SQLite database engine), ffmpeg (synthesize/process real H.264 .mp4 videos in workspace), ffprobe <video> (inspect video streams), yt-dlp [-o file.mp4] <url> (download video to workspace), "
                 + "curl [-X -H -d -I -o] <url> (HTTP client & page reader), wget [-O file] <url> (file downloader), ping <host>, dig <domain>, ifconfig/ip, search <query> (live web search), "
-                + "python3 <file.py> | python3 -c \"code\" (REAL CPython 3.12 via Pyodide with automatic workspace file sync), node <file.js> | node -e \"code\" (REAL JavaScript), pip install <package>. "
-                + "Use this Linux workstation proactively to create projects, write and test code, process JSON/CSV/text pipelines, scrape web pages, and build deliverables.",
+                + "python3 <file.py> | python3 -c \"code\" (REAL CPython 3.12 via Pyodide with automatic bidirectional workspace file sync), node <file.js> | node -e \"code\" (REAL JavaScript with fs module synced to /home/astral), pip install <package>. "
+                + "Use this Linux workstation proactively to create projects, write and test code, process JSON/CSV/SQLite/video pipelines, scrape web pages, and build deliverables.",
             parameters: .object([
                 "type": .string("object"),
                 "properties": .object([
                     "command": .object([
                         "type": .string("string"),
                         "description": .string(
-                            "The Linux shell command line, e.g. 'mkdir -p Projects/App && echo \"# App\" > Projects/App/README.md' or 'curl -s https://api.github.com/zen | tee quote.txt'"),
+                            "The Linux shell command line, e.g. 'mkdir -p Projects/App && echo \"# App\" > Projects/App/README.md' or 'sqlite3 data.db \"CREATE TABLE items(id INT, name TEXT); INSERT INTO items VALUES(1, \\\"Astral\\\"); SELECT * FROM items;\"'"),
                     ]),
                 ]),
                 "required": .array([.string("command")]),

@@ -1,11 +1,11 @@
 import SwiftUI
 import UIKit
+import AVKit
 
-// MARK: - Message row (V5 Liquid Glass Chat)
+// MARK: - Message row (Liquid Glass Chat)
 
 /// Dispatches a single conversation message to the right presentation
-/// (user bubble, assistant text, tool chip) by its role. System messages
-/// stay hidden.
+/// (user bubble, assistant text, video card, screenshot card) by its role.
 struct MessageRow: View {
     let message: ChatMessage
 
@@ -19,11 +19,18 @@ struct MessageRow: View {
             UserBubble(
                 text: message.content,
                 images: message.images ?? [],
+                videos: message.videos ?? [],
                 attachments: message.attachments ?? [])
         case .assistant:
             AssistantCard(message: message)
         case .tool:
-            if message.name == BrowserScreenshotTool.toolName,
+            if let videos = message.videos, !videos.isEmpty {
+                VStack(spacing: 12) {
+                    ForEach(videos) { video in
+                        VideoCard(video: video)
+                    }
+                }
+            } else if message.name == BrowserScreenshotTool.toolName,
                let capture = message.images?.first {
                 ScreenshotCard(image: capture)
             } else {
@@ -35,11 +42,163 @@ struct MessageRow: View {
     }
 }
 
-// MARK: - Screenshot card (V5 Liquid Glass)
+// MARK: - Video card (In-Chat Video Player + Workspace Save)
 
-/// A screenshot the agent captured for the user — the page it is on,
-/// delivered as an image card. Glass frame, camera caption bar, and a
-/// tap that opens the full-screen viewer with pinch zoom.
+/// Renders a video delivered by the agent (`send_video`, `ffmpeg`, `yt-dlp`)
+/// right inside the chat timeline with an inline `VideoPlayer`, Workspace path
+/// badge, and Share/Save controls.
+struct VideoCard: View {
+    let video: MessageVideo
+
+    @State private var player: AVPlayer?
+    @State private var fullScreen = false
+
+    private var resolvedURL: URL? {
+        MediaStore.videoURL(for: video)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 9) {
+                AIcon(
+                    AstralIcons.play,
+                    size: 14,
+                    strokeWidth: 2.2,
+                    color: AstralTheme.orbGreen)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(AstralTheme.surfaceSecondary))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(video.fileName)
+                        .font(AstralTheme.headline(13))
+                        .foregroundStyle(AstralTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(video.workspacePath)
+                        .font(AstralTheme.mono(10.5))
+                        .foregroundStyle(AstralTheme.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 6)
+
+                if let url = resolvedURL {
+                    ShareLink(item: url) {
+                        AIcon(
+                            AstralIcons.share,
+                            size: 13.5,
+                            strokeWidth: 2.2,
+                            color: AstralTheme.textSecondary)
+                            .frame(width: 28, height: 28)
+                            .liquidGlass(in: Circle(), interactive: true)
+                    }
+                }
+
+                Button {
+                    fullScreen = true
+                } label: {
+                    AIcon(
+                        AstralIcons.externalLink,
+                        size: 13,
+                        strokeWidth: 2.2,
+                        color: AstralTheme.textSecondary)
+                        .frame(width: 28, height: 28)
+                        .liquidGlass(in: Circle(), interactive: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Group {
+                if let player {
+                    VideoPlayer(player: player)
+                } else {
+                    ZStack {
+                        Rectangle()
+                            .fill(AstralTheme.surfaceSecondary)
+                        AIcon(
+                            AstralIcons.play,
+                            size: 28,
+                            strokeWidth: 2.2,
+                            color: AstralTheme.textSecondary)
+                    }
+                }
+            }
+            .frame(height: 220)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(AstralTheme.separator, lineWidth: 1))
+        }
+        .padding(12)
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous), interactive: true)
+        .onAppear {
+            if player == nil, let url = resolvedURL {
+                player = AVPlayer(url: url)
+            }
+        }
+        .fullScreenCover(isPresented: $fullScreen) {
+            if let url = resolvedURL {
+                FullScreenVideoViewer(url: url, title: video.fileName)
+            }
+        }
+    }
+}
+
+/// Full-screen video player sheet with close and share buttons.
+struct FullScreenVideoViewer: View {
+    let url: URL
+    let title: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let player {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+            }
+
+            VStack {
+                HStack {
+                    GlassCloseButton {
+                        player?.pause()
+                        dismiss()
+                    }
+                    Spacer()
+                    ShareLink(item: url) {
+                        AIcon(
+                            AstralIcons.share,
+                            size: 16,
+                            strokeWidth: 2.2,
+                            color: .white)
+                            .frame(width: 40, height: 40)
+                            .liquidGlass(in: Circle(), interactive: true)
+                            .contentShape(Circle())
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                Spacer()
+            }
+        }
+        .onAppear {
+            let av = AVPlayer(url: url)
+            player = av
+            av.play()
+        }
+        .onDisappear {
+            player?.pause()
+        }
+    }
+}
+
+// MARK: - Screenshot card (Liquid Glass)
+
 struct ScreenshotCard: View {
     let image: MessageImage
 
@@ -112,8 +271,6 @@ struct ScreenshotCard: View {
     }
 }
 
-/// Full-screen viewer for a delivered screenshot: dark stage, aspect-fit
-/// image with pinch zoom, a glass close control and share.
 struct ScreenshotViewer: View {
     let image: UIImage?
 
@@ -161,7 +318,6 @@ struct ScreenshotViewer: View {
     }
 }
 
-/// Aspect-fit image with pinch-to-zoom and drag-when-zoomed.
 private struct MagnificationImage: View {
     let image: UIImage
     @State private var scale: CGFloat = 1
@@ -208,19 +364,23 @@ private struct MagnificationImage: View {
     }
 }
 
-// MARK: - User bubble (V5 iOS 27 Liquid Glass Bubble)
+// MARK: - User bubble (Liquid Glass Bubble)
 
-/// Trailing-aligned iOS 27 Liquid Glass bubble for user messages:
-/// refractive glass surface with specular top rim, subtle elevation,
-/// image thumbnails and file chips stacked cleanly above the text.
 struct UserBubble: View {
     let text: String
     let images: [MessageImage]
+    var videos: [MessageVideo] = []
     var attachments: [MessageAttachment] = []
 
-    init(text: String, images: [MessageImage], attachments: [MessageAttachment] = []) {
+    init(
+        text: String,
+        images: [MessageImage],
+        videos: [MessageVideo] = [],
+        attachments: [MessageAttachment] = []
+    ) {
         self.text = text
         self.images = images
+        self.videos = videos
         self.attachments = attachments
     }
 
@@ -231,6 +391,9 @@ struct UserBubble: View {
             VStack(alignment: .trailing, spacing: 8) {
                 if !attachments.isEmpty {
                     attachmentChips
+                }
+                if !videos.isEmpty {
+                    videoStack
                 }
                 if !images.isEmpty {
                     imageGrid
@@ -254,7 +417,6 @@ struct UserBubble: View {
         .textSelection(.enabled)
     }
 
-    /// Compact file chips (vector icon + name) shown above the bubble text.
     private var attachmentChips: some View {
         VStack(alignment: .trailing, spacing: 6) {
             ForEach(attachments) { file in
@@ -276,6 +438,14 @@ struct UserBubble: View {
         }
     }
 
+    private var videoStack: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            ForEach(videos) { video in
+                BubbleVideo(video: video)
+            }
+        }
+    }
+
     @ViewBuilder
     private var imageGrid: some View {
         let chunked = stride(from: 0, to: images.count, by: 2).map {
@@ -288,6 +458,63 @@ struct UserBubble: View {
                         BubbleImage(image: image)
                     }
                 }
+            }
+        }
+    }
+}
+
+/// One video inside a user bubble: poster frame + play button + workspace badge.
+private struct BubbleVideo: View {
+    let video: MessageVideo
+    @State private var thumbnail: UIImage?
+    @State private var playing = false
+
+    var body: some View {
+        Button {
+            playing = true
+        } label: {
+            ZStack(alignment: .bottomLeading) {
+                ZStack {
+                    if let thumbnail {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Rectangle()
+                            .fill(AstralTheme.surfaceSecondary)
+                    }
+                    Circle()
+                        .fill(Color.black.opacity(0.60))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 210, height: 132)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 0.8))
+
+                Text(video.fileName)
+                    .font(AstralTheme.mono(10).weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.black.opacity(0.55)))
+                    .padding(8)
+            }
+        }
+        .buttonStyle(.plain)
+        .task {
+            if let url = MediaStore.videoURL(for: video) {
+                thumbnail = MediaStore.videoThumbnail(for: url, maxDimension: 360)
+            }
+        }
+        .fullScreenCover(isPresented: $playing) {
+            if let url = MediaStore.videoURL(for: video) {
+                FullScreenVideoViewer(url: url, title: video.fileName)
             }
         }
     }
@@ -321,10 +548,8 @@ private struct BubbleImage: View {
     }
 }
 
-// MARK: - Assistant message (V5 Liquid Glass Header + Copy Action)
+// MARK: - Assistant message (Astral AI Header + Copy Action)
 
-/// Full-width assistant reply rendered in V5 Markdown with an author header
-/// badge and one-tap copy button. Empty content renders nothing.
 struct AssistantCard: View {
     let message: ChatMessage
     @State private var copied = false
@@ -347,7 +572,7 @@ struct AssistantCard: View {
                     }
                     .accessibilityHidden(true)
 
-                    Text("Astral")
+                    Text(AppIdentity.appName)
                         .font(AstralTheme.headline(12.5))
                         .foregroundStyle(AstralTheme.textSecondary)
 
@@ -399,7 +624,6 @@ struct AssistantCard: View {
 
 // MARK: - Tool chip
 
-/// Compact expandable row showing a tool invocation and its output.
 struct ToolChip: View {
     let message: ChatMessage
 
@@ -463,8 +687,6 @@ struct ToolChip: View {
 
 // MARK: - Streaming view
 
-/// Live view for the assistant's in-flight response: plain markdown with a
-/// typing caret and a subtle glass thinking pill before the first token arrives.
 struct StreamingCard: View {
     let text: String
 
@@ -494,7 +716,6 @@ struct StreamingCard: View {
     }
 }
 
-/// One pulsing "thinking" dot.
 private struct ThinkingDot: View {
     let delay: Double
     @State private var pulsing = false

@@ -63,23 +63,26 @@ enum SessionPersistence {
 struct PendingTurn {
     let text: String
     let images: [MessageImage]
+    let videos: [MessageVideo]
     let attachments: [MessageAttachment]
     let agentMode: Bool
 
     init(
         text: String,
         images: [MessageImage] = [],
+        videos: [MessageVideo] = [],
         attachments: [MessageAttachment] = [],
         agentMode: Bool = false
     ) {
         self.text = text
         self.images = images
+        self.videos = videos
         self.attachments = attachments
         self.agentMode = agentMode
     }
 }
 
-// MARK: - AgentSession (V5.0.0 — Expert Autonomous AI Agent & Linux Architect)
+// MARK: - AgentSession (Astral AI — Autonomous AI Agent & Linux Architect)
 
 @MainActor
 final class AgentSession: ObservableObject, Identifiable {
@@ -110,22 +113,28 @@ final class AgentSession: ObservableObject, Identifiable {
 
     private static let busyPhases: Set<SessionPhase> = [.planning, .responding, .executing, .merging]
 
-    /// The V5.0.0 chat-mode system prompt — Expert AI Agent & Linux Workstation edition.
+    /// The chat-mode system prompt — identity strictly "Astral AI".
     private static let chatSystemPrompt =
-        "You are Astral V5, an elite autonomous AI agent and expert Linux systems architect running on iOS inside astra-os 5.0 — "
+        "You are Astral AI, an elite autonomous AI agent and expert Linux systems architect running on iOS inside astra-os — "
         + "your own persistent, private Linux workstation environment on the user's device. "
+        + "IDENTITY RULE: Your name and identity is strictly 'Astral AI' (created by Tariq El-Fares / UNIRAL). "
+        + "Never append version numbers (such as V5, V5.0, etc.) to your name when introducing yourself or replying to the user. "
         + "Answer the user directly, thoroughly, and in beautifully structured Markdown (using headings, tables, task lists, callouts, and syntax-highlighted code blocks where appropriate), in the user's own language "
         + "(Arabic request → Arabic answer, English request → English answer). "
-        + "\n\nYOUR LINUX WORKSTATION (astra-os 5.0): a REAL Linux FHS shell at /home/astral (with /etc, /var, /tmp, /proc) — persistent between "
+        + "\n\nYOUR LINUX WORKSTATION (astra-os): a REAL Linux FHS shell at /home/astral (with /etc, /var, /tmp, /proc, /dev, /usr) — persistent between "
         + "chats, visible to the user in the Files tab and a live terminal. You operate as root (uid=0) with full shell power: "
         + "pipes (cmd | cmd), chaining (cmd && cmd; cmd || fallback), environment variables ($VAR / export), and redirection (>, >>) all work "
-        + "like a real computer. Commands (60+): ls, ll, cd, pwd, cat, echo, printf, mkdir, rmdir, touch, rm, cp, mv, ln, grep, "
-        + "find, wc, head, tail, tree, sed, awk, jq (JSON query & formatting), xargs, tee, stat, file, du, sort, uniq, cut, tr, rev, diff, seq, base64, "
+        + "like a real computer. Commands (75+): ls, ll, cd, pwd, cat, echo, printf, mkdir, rmdir, touch, rm, cp, mv, ln, grep, "
+        + "find, wc, head, tail, tree, sed, awk, jq (JSON query & formatting), xargs, tee, stat, file, du, sort, uniq, cut, tr, rev, diff, seq, column, paste, bc, expr, xxd, hexdump, base64, "
         + "md5sum, shasum, sha256sum, chmod, chown, basename, dirname, realpath, env, export, unset, df, free, ps, top, lscpu, nproc, uptime, hostname, id, neofetch, which, sleep, date, uname, whoami, "
-        + "history, apt (update/install/list), git (init/status/add/commit/log/clone), zip, unzip, tar, curl (full HTTP client with -X, -H, -d, -I, -o), wget (-O), ping, dig, ifconfig/ip, search (live web search), python3 "
-        + "(REAL CPython 3.12 with automatic workspace file sync — scripts or -c code), node (REAL JavaScript), pip install. You also have "
-        + "run_python and run_javascript. The user watches every command you run in the Astra Computer bar and live terminal "
+        + "systemctl, service, crontab, lsof, netstat, ss, history, apt (update/install/list), git (init/status/add/commit/log/clone), zip, unzip, tar, sqlite3 (real SQLite database engine), "
+        + "ffmpeg (synthesize/process real H.264 .mp4 videos in workspace), ffprobe (inspect video/media streams), yt-dlp (download web videos to workspace), "
+        + "curl (full HTTP client with -X, -H, -d, -I, -o), wget (-O), ping, dig, ifconfig/ip, search (live web search), python3 "
+        + "(REAL CPython 3.12 with automatic bidirectional workspace file sync — scripts or -c code), node (REAL JavaScript with fs module synced to /home/astral), pip install. You also have "
+        + "run_python, run_javascript, and send_video. The user watches every command you run in the Astra Computer bar and live terminal "
         + "view — work there with complete mastery like an expert Claude Code / Manus engineer.\n\n"
+        + "VIDEOS & MEDIA IN WORKSPACE: You can send, download, and generate real .mp4 videos and save them in the Workspace (under Videos/) using the send_video tool or the ffmpeg / yt-dlp shell commands! "
+        + "Whenever the user asks you to send a video, download a video, or create a video and save it in the workspace, call send_video (or run ffmpeg / yt-dlp in exec and then send_video) so the video is both saved in the Workspace (Videos/...) and delivered as an interactive video player card in the chat.\n\n"
         + "CLOUD LINUX — FULL ROOT: when the cloud_exec tool is available, the user connected a "
         + "REAL Ubuntu Linux cloud computer (E2B) and you hold ROOT on it: permission errors are "
         + "auto-escalated with sudo, so apt packages, system files, ffmpeg, git, compilation, real "
@@ -135,7 +144,7 @@ final class AgentSession: ObservableObject, Identifiable {
         + "mirrored files.\n\n"
         + "PROJECTS & FILES: the workspace has a Projects/ area — call project_create to open a "
         + "project folder for any multi-file goal, then save everything for that goal inside it. "
-        + "Files the user attaches or imports arrive under uploads/ (and the workspace root) — "
+        + "Files the user attaches or imports arrive under uploads/ (and videos under Videos/) — "
         + "read them with file_read, edit and extend them with file_write. Skill files the user "
         + "attaches (.skill) are installed into the Skills library AUTOMATICALLY the moment they "
         + "arrive; you can also install skills from a URL or a workspace path (e.g. "
@@ -162,7 +171,7 @@ final class AgentSession: ObservableObject, Identifiable {
         + "changed after your training cutoff: call web_search FIRST, then web_fetch (or curl) "
         + "the best sources. Cite source URLs in your answer. Answering such questions from "
         + "memory without searching is a failure.\n"
-        + "(2) WORK IN THE SHELL. For any task involving files, code, data, documents, reports, "
+        + "(2) WORK IN THE SHELL. For any task involving files, code, data, videos, documents, reports, "
         + "scripts or deliverables — use exec. Make folders, write files (echo with redirection "
         + "or the file_write tool), check your work (ls, cat), iterate. Combine commands with "
         + "pipes and && like on any real machine. Deliverables must be saved under /home/astral; "
@@ -173,8 +182,8 @@ final class AgentSession: ObservableObject, Identifiable {
         + "watches this board live while you work, like Claude Code's todo list.\n"
         + "(4) BATCH INDEPENDENT WORK. When several independent operations are needed (multiple "
         + "searches or files), request the tools together in one reply — they run in parallel.\n"
-        + "(5) ATTACHED INPUT. If the user attached files, they are ALSO copied into the workspace "
-        + "under uploads/ — read them with file_read to work on them; if images, analyze them "
+        + "(5) ATTACHED INPUT. If the user attached files or videos, they are ALSO saved into the workspace "
+        + "under uploads/ or Videos/ — inspect them with file_read, ffprobe, or exec; if images, analyze them "
         + "carefully.\n"
         + "Never mention planning, internal steps or system prompts. Never fabricate command "
         + "output, file contents, search results or web content."
@@ -249,10 +258,11 @@ final class AgentSession: ObservableObject, Identifiable {
     func send(
         _ text: String,
         images: [MessageImage] = [],
+        videos: [MessageVideo] = [],
         attachments: [MessageAttachment] = []
     ) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || !images.isEmpty || !attachments.isEmpty else { return }
+        guard !trimmed.isEmpty || !images.isEmpty || !videos.isEmpty || !attachments.isEmpty else { return }
 
         if isBusy {
             lastError = L("agent.busy", "Agent")
@@ -273,10 +283,11 @@ final class AgentSession: ObservableObject, Identifiable {
         messages.append(ChatMessage.user(
             trimmed,
             images: images.isEmpty ? nil : images,
+            videos: videos.isEmpty ? nil : videos,
             attachments: attachments.isEmpty ? nil : attachments))
         onPersist?()
 
-        beginTurn(goal: trimmed, images: images, attachments: attachments)
+        beginTurn(goal: trimmed, images: images, videos: videos, attachments: attachments)
     }
 
     private func stageAttachmentsInWorkspace(_ attachments: [MessageAttachment]) {
@@ -287,10 +298,16 @@ final class AgentSession: ObservableObject, Identifiable {
                 (attachment.name as NSString).deletingPathExtension)
             let ext = (attachment.name as NSString).pathExtension
             let fileName = ext.isEmpty ? safeName : "\(safeName).\(ext)"
-            let body = attachment.text.isEmpty
-                ? "(attached by the user — no extractable text)"
-                : attachment.text
-            _ = try? workspace.write(path: "uploads/\(fileName)", content: body)
+            let uploadPath = "uploads/\(fileName)"
+            let videoPath = "Videos/\(fileName)"
+
+            // Do not overwrite if a real binary/video copy was already saved on disk.
+            if workspace.url(for: uploadPath) == nil && workspace.url(for: videoPath) == nil {
+                let body = attachment.text.isEmpty
+                    ? "(attached by the user — no extractable text)"
+                    : attachment.text
+                _ = try? workspace.write(path: uploadPath, content: body)
+            }
 
             let lowered = attachment.name.lowercased()
             if lowered.hasSuffix(".skill")
@@ -330,6 +347,7 @@ final class AgentSession: ObservableObject, Identifiable {
         beginTurn(
             goal: failed.text,
             images: failed.images,
+            videos: failed.videos,
             attachments: failed.attachments,
             agentMode: failed.agentMode)
     }
@@ -362,6 +380,7 @@ final class AgentSession: ObservableObject, Identifiable {
     private func beginTurn(
         goal: String,
         images: [MessageImage],
+        videos: [MessageVideo] = [],
         attachments: [MessageAttachment] = [],
         agentMode: Bool? = nil
     ) {
@@ -379,6 +398,7 @@ final class AgentSession: ObservableObject, Identifiable {
         let turn = PendingTurn(
             text: goal,
             images: images,
+            videos: videos,
             attachments: attachments,
             agentMode: mode)
 
@@ -403,7 +423,7 @@ final class AgentSession: ObservableObject, Identifiable {
 
     private static func primaryArgument(for call: ToolCall) -> String {
         let arguments = call.parsedArguments
-        for key in ["command", "url", "query", "path", "name", "code"] {
+        for key in ["command", "url", "query", "path", "title", "name", "code"] {
             if let value = arguments[key]?.stringValue, !value.isEmpty {
                 let flat = value.replacingOccurrences(of: "\n", with: " ⏎ ")
                 return flat.count > 64 ? String(flat.prefix(64)) + "…" : flat
@@ -656,17 +676,19 @@ final class AgentSession: ObservableObject, Identifiable {
                     }
 
                     for (call, toolResult) in zip(pendingCalls, results) {
-                        var delivered: [MessageImage]?
+                        var deliveredImages: [MessageImage]?
                         if call.name == BrowserScreenshotTool.toolName,
                            let capture = ScreenCaptureDelivery.take(callID: call.id) {
-                            delivered = [capture]
+                            deliveredImages = [capture]
                         }
+                        let deliveredVideos = VideoDelivery.take(callID: call.id)
                         let toolMessage = ChatMessage(
                             role: .tool,
                             content: toolResult.content,
                             toolCallId: call.id,
                             name: call.name,
-                            images: delivered)
+                            images: deliveredImages,
+                            videos: deliveredVideos)
                         working.append(toolMessage)
                         messages.append(toolMessage)
                         if Task.isCancelled { throw CancellationError() }

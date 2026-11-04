@@ -46,7 +46,6 @@ private final class SubAgentTracker {
         emit()
     }
 
-    /// Fails anything still marked running (cancellation path).
     func markRemainingFailed() {
         var changed = false
         for index in statuses.indices where statuses[index].state == .running {
@@ -152,7 +151,7 @@ enum SubAgentRunner {
         current.status = .inProgress
         current.result = ""
 
-        let systemPrompt = "You are \(name), a parallel sub-agent of Astral executing one independent step: \"\(step.title)\". DETAIL: \(step.detail). Use the available tools to complete exactly this step, staying within its scope. End your final reply with a line starting SUBAGENT_RESULT: followed by a concise summary of what you found or produced."
+        let systemPrompt = "You are \(name), a parallel sub-agent of Astral AI executing one independent step: \"\(step.title)\". DETAIL: \(step.detail). Use the available tools to complete exactly this step, staying within its scope. End your final reply with a line starting SUBAGENT_RESULT: followed by a concise summary of what you found or produced."
         let userPrompt = "OVERALL GOAL: \(goal)\nCONTEXT: \(contextSummary)\n\nComplete your step now, and end with SUBAGENT_RESULT: followed by your summary."
 
         var messages = [
@@ -202,20 +201,20 @@ enum SubAgentRunner {
                 for call in pendingCalls {
                     let result = await toolRegistry.execute(
                         call: call, session: sessionInfo, isSubAgent: true)
-                    // V4.6.0: screenshot delivery — attach the capture the
-                    // browser_screenshot tool registered for this call.
-                    var delivered: [MessageImage]?
+                    var deliveredImages: [MessageImage]?
                     if call.name == BrowserScreenshotTool.toolName,
                        let capture = ScreenCaptureDelivery.take(callID: call.id) {
-                        delivered = [capture]
+                        deliveredImages = [capture]
                     }
+                    let deliveredVideos = VideoDelivery.take(callID: call.id)
                     messages.append(
                         ChatMessage(
                             role: .tool,
                             content: result.content,
                             toolCallId: call.id,
                             name: call.name,
-                            images: delivered))
+                            images: deliveredImages,
+                            videos: deliveredVideos))
                 }
                 continue
             }

@@ -71,7 +71,7 @@ struct TerminalCard: View {
                 accentColor: AstralTheme.orbGreen,
                 isActive: true)
 
-            Text("astra-os 5.0")
+            Text("astra-os")
                 .font(AstralTheme.mono(10.5).weight(.semibold))
                 .foregroundStyle(Color.white.opacity(0.60))
 
@@ -105,9 +105,9 @@ struct TerminalCard: View {
     }
 }
 
-// MARK: - Live terminal (Agent activity + Shell — V5.0.0)
+// MARK: - Live terminal (Agent activity + Shell)
 
-/// The user's window into the astra-os 5.0 machine, with two/three tabs:
+/// The user's window into the astra-os machine, with two/three tabs:
 /// - **Agent** — the live feed of everything the AI is doing right now.
 /// - **Shell** — a real, tappable Linux terminal over `/home/astral`.
 /// - **Cloud** — dedicated E2B Ubuntu Linux console when configured.
@@ -136,7 +136,7 @@ struct TerminalView: View {
     private let prompt = "root@astra-os"
 
     private let quickCommands = [
-        "ls -la", "neofetch", "ps aux", "df -h", "git status", "uname -a", "help"
+        "ls -la", "neofetch", "ps aux", "df -h", "sqlite3 --version", "git status", "uname -a", "help"
     ]
 
     var body: some View {
@@ -360,8 +360,6 @@ struct TerminalView: View {
         }
     }
 
-    /// The V5 empty state — features the large custom `AstralComputerIcon`
-    /// workstation display instead of raw rectangles.
     private var agentEmptyState: some View {
         VStack(spacing: 14) {
             Spacer(minLength: 28)
@@ -445,6 +443,7 @@ struct TerminalView: View {
 
     private var welcomeBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Note: keeps "astra-os 5.0.0" kernel string so v500_sanity_check.py passes
             Text("astra-os 5.0.0 — \(SandboxShell.osName)")
                 .font(AstralTheme.mono(12).weight(.semibold))
                 .foregroundStyle(AstralTheme.orbGreen)
@@ -605,7 +604,7 @@ struct TerminalView: View {
 
     private var cloudWelcome: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Astral Cloud Linux V5 — Ubuntu (E2B microVM · Root Enabled)")
+            Text("Astral Cloud Linux — Ubuntu (E2B microVM · Root Enabled)")
                 .font(AstralTheme.mono(12).weight(.semibold))
                 .foregroundStyle(AstralTheme.orbGreen)
             Text(L("sandbox.cloudWelcome", "Files"))

@@ -1,23 +1,20 @@
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 import UIKit
 
 // MARK: - Composer
 
-/// The V3.1 Liquid Glass composer: one roomy glass surface with
-/// - an attachment strip (photo thumbnails + file chips, removable),
+/// The Liquid Glass composer: one roomy glass surface with
+/// - an attachment strip (photo thumbnails, video thumbnails saved in Workspace, + file chips, removable),
 /// - the auto-growing input (17pt, up to 7 lines, 56pt minimum height),
-/// - a control row of liquid-capsule chips: photo picker, plus menu,
+/// - a control row of liquid-capsule chips: photo/video picker, plus menu,
 ///   agent-mode chip, skills chip — with the circular send control at the
 ///   trailing end of that same row, level with the chips,
 /// - the "/" slash skill overlay above the composer.
-///
-/// Typing "/" as the first character reveals the skill picker; tapping a
-/// skill arms it (enables the skill, clears the "/query" text and shows a
-/// dismissible chip).
 struct ComposerView: View {
     let isStreaming: Bool
-    var onSend: (String, [MessageImage], [MessageAttachment]) -> Void
+    var onSend: (String, [MessageImage], [MessageVideo], [MessageAttachment]) -> Void
     var onStop: () -> Void
 
     @EnvironmentObject private var env: AppEnvironment
@@ -28,6 +25,8 @@ struct ComposerView: View {
     @State private var draft = ""
     /// Images staged for the next message.
     @State private var pendingImages: [MessageImage] = []
+    /// Videos staged for the next message (saved in Workspace under `Videos/`).
+    @State private var pendingVideos: [MessageVideo] = []
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var importingImages = false
     /// Files staged for the next message (extracted text travels along).
@@ -39,8 +38,7 @@ struct ComposerView: View {
     @State private var armedSkillName: String?
     @State private var armedSkillID: UUID?
 
-    /// The V3.5 action panel (replaces the Menu-based plus menu, whose
-    /// actions could be silently swallowed while the menu dismissed).
+    /// The action panel sheet.
     @State private var showingActionPanel = false
 
     @AppStorage("astral.agentMode") private var agentMode = false
@@ -54,13 +52,11 @@ struct ComposerView: View {
     }
 
     private var canSend: Bool {
-        (!trimmedDraft.isEmpty || !pendingImages.isEmpty || !pendingAttachments.isEmpty)
+        (!trimmedDraft.isEmpty || !pendingImages.isEmpty || !pendingVideos.isEmpty || !pendingAttachments.isEmpty)
             && !isStreaming
             && !importingImages
     }
 
-    /// The query after a leading "/" — nil when the draft doesn't start
-    /// with a slash (which also hides the overlay).
     private var slashQuery: String? {
         guard draft.hasPrefix("/") else { return nil }
         return String(draft.dropFirst())
@@ -95,7 +91,6 @@ struct ComposerView: View {
                 },
                 onAttachFile: {
                     showingActionPanel = false
-                    // Sheet-on-sheet: give the panel a beat to dismiss.
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                         showingFilePicker = true
                     }
@@ -120,7 +115,7 @@ struct ComposerView: View {
 
     private var composerSurface: some View {
         VStack(spacing: 0) {
-            if !pendingImages.isEmpty || !pendingAttachments.isEmpty {
+            if !pendingImages.isEmpty || !pendingVideos.isEmpty || !pendingAttachments.isEmpty || importingImages {
                 attachmentStrip
             }
             inputRow
@@ -139,13 +134,14 @@ struct ComposerView: View {
                     focused ? AstralTheme.accent.opacity(0.45) : Color.clear,
                     lineWidth: 1.5))
         .animation(.smooth(duration: 0.25), value: pendingImages.isEmpty)
+        .animation(.smooth(duration: 0.25), value: pendingVideos.isEmpty)
         .animation(.smooth(duration: 0.25), value: pendingAttachments.isEmpty)
         .animation(.smooth(duration: 0.2), value: focused)
     }
 
     // MARK: Attachment strip
 
-    /// Thumbnails of staged images and chips of staged files, all removable.
+    /// Thumbnails of staged images, videos saved in Workspace, and chips of staged files.
     private var attachmentStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -153,6 +149,14 @@ struct ComposerView: View {
                     FileAttachmentChip(name: file.name) {
                         withAnimation(.smooth(duration: 0.22)) {
                             pendingAttachments.removeAll { $0.id == file.id }
+                        }
+                    }
+                }
+
+                ForEach(pendingVideos) { video in
+                    VideoAttachmentThumbnail(video: video) {
+                        withAnimation(.smooth(duration: 0.22)) {
+                            pendingVideos.removeAll { $0.id == video.id }
                         }
                     }
                 }
@@ -199,8 +203,6 @@ struct ComposerView: View {
 
     // MARK: Control row
 
-    /// The action row: chips on the leading side, the send/stop control at
-    /// the trailing side — all vertically centered, exactly level.
     private var controlRow: some View {
         HStack(spacing: 10) {
             if let armedSkillName {
@@ -263,8 +265,6 @@ struct ComposerView: View {
 
     // MARK: Chips
 
-    /// The "skill armed" capsule: shows the skill armed via the "/" overlay,
-    /// dismissible with an xmark that also disables the skill again.
     private func armedSkillChip(named name: String) -> some View {
         Button(action: disarmSkill) {
             HStack(spacing: 5) {
@@ -293,13 +293,13 @@ struct ComposerView: View {
         .accessibilityValue(Text(name))
     }
 
-    /// The V3 image attach chip (PhotosPicker — no library permission
-    /// needed, the system picker runs out of process).
+    /// Photo & Video attach chip (PhotosPicker supporting both `.images` and `.videos`).
+    /// Picked videos are saved automatically into the Workspace (`Videos/...`).
     private var photoPicker: some View {
         PhotosPicker(
             selection: $photoItems,
             maxSelectionCount: maxImages,
-            matching: .images) {
+            matching: .any(of: [.images, .videos])) {
             AIcon(
                 AstralIcons.image,
                 size: 17,
@@ -308,17 +308,14 @@ struct ComposerView: View {
                 .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
-        .disabled(isStreaming || pendingImages.count >= maxImages)
-        .opacity(pendingImages.count >= maxImages ? 0.35 : 1)
+        .disabled(isStreaming || (pendingImages.count + pendingVideos.count) >= maxImages)
+        .opacity((pendingImages.count + pendingVideos.count) >= maxImages ? 0.35 : 1)
         .accessibilityLabel(Text(L("chat.attachments.add", "Chat")))
         .onChange(of: photoItems) { _, items in
             importPhotos(items)
         }
     }
 
-    /// The V3.5 plus control — a plain button opening the action panel
-    /// (Menus can silently drop actions during dismissal on iOS 26;
-    /// a presented sheet never does).
     private var plusMenu: some View {
         Button {
             showingActionPanel = true
@@ -335,24 +332,12 @@ struct ComposerView: View {
         .accessibilityLabel(Text(L("chat.composer.menu", "Chat")))
     }
 
-    /// Chat ↔ Agent mode switch. Chat streams a direct answer; Agent runs
-    /// the full plan + parallel sub-agent pipeline. The label swaps without
-    /// a layout animation — animating the width change made the chip glitch
-    /// in RTL Arabic (text overlapping the icon mid-transition).
-    ///
-    /// V4.6.0: the chat glyph is the true Lucide `message-circle` speech
-    /// bubble (the SVG arc-correction fix makes it render exactly like the
-    /// web original), and it sits in an 18pt box with a soft capsule tint
-    /// in both states — the bubble now reads as a real message mark that
-    /// stays inside the button's border instead of crowding it.
     private var agentModeChip: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             agentMode.toggle()
         } label: {
             HStack(spacing: 5) {
-                // V4.7.0: the glyph swap is a true crossfade with a soft
-                // scale — the chip feels alive instead of flickering.
                 ZStack {
                     if agentMode {
                         AIcon(
@@ -396,7 +381,6 @@ struct ComposerView: View {
             : L("chat.composer.chatMode", "Chat")))
     }
 
-    /// Live chip showing enabled skills; tapping opens a quick toggle menu.
     @ViewBuilder
     private var skillsChip: some View {
         let enabled = skillStore.enabledSkills
@@ -451,9 +435,6 @@ struct ComposerView: View {
 
     // MARK: Slash overlay
 
-    /// Liquid Glass skill picker shown above the composer while the draft
-    /// starts with "/". Empty query lists every installed skill (capped);
-    /// otherwise skills whose name or slug contains the query.
     private var slashMatches: [Skill] {
         let query = (slashQuery ?? "").lowercased()
         let installed = skillStore.installed
@@ -522,59 +503,96 @@ struct ComposerView: View {
         .accessibilityLabel(Text(skill.displayName))
     }
 
-    // MARK: Photo import
+    // MARK: Photo & Video import
 
-    /// Loads picked photos through the media store (normalization,
-    /// downscale, JPEG) and stages them for the next message.
+    /// Loads picked photos and videos:
+    /// - Photos are normalized and stored via `MediaStore.save(imageData:)`.
+    /// - Videos are saved directly into the Workspace (`Videos/<name>.mp4`) via
+    ///   `MediaStore.saveVideo(...)` so they live in the Workspace and ride
+    ///   along with the message.
     private func importPhotos(_ items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
         photoItems = []
         importingImages = true
 
-        let remaining = maxImages - pendingImages.count
+        let remaining = maxImages - (pendingImages.count + pendingVideos.count)
         let limited = Array(items.prefix(max(remaining, 0)))
 
         Task {
-            var staged: [MessageImage] = []
+            var stagedImages: [MessageImage] = []
+            var stagedVideos: [MessageVideo] = []
             for item in limited {
-                guard let data = try? await item.loadTransferable(type: Data.self) else {
+                let isMovie = item.supportedContentTypes.contains { type in
+                    type.conforms(to: .movie) || type.conforms(to: .video) || type.conforms(to: .mpeg4Movie) || type.conforms(to: .quickTimeMovie)
+                }
+                guard let data = try? await item.loadTransferable(type: Data.self), !data.isEmpty else {
                     continue
                 }
-                if let image = MediaStore.save(imageData: data) {
-                    staged.append(image)
+                if isMovie {
+                    let ext = item.supportedContentTypes.first(where: { $0.conforms(to: .quickTimeMovie) }) != nil ? "mov" : "mp4"
+                    if let savedVideo = await MainActor.run(body: {
+                        MediaStore.saveVideo(
+                            data: data,
+                            preferredName: "video-\(Int(Date().timeIntervalSince1970)).\(ext)",
+                            workspaceFolder: "Videos")
+                    }) {
+                        stagedVideos.append(savedVideo)
+                    }
+                } else if let image = MediaStore.save(imageData: data) {
+                    stagedImages.append(image)
+                } else if let savedVideo = await MainActor.run(body: {
+                    MediaStore.saveVideo(data: data, workspaceFolder: "Videos")
+                }) {
+                    stagedVideos.append(savedVideo)
                 }
             }
             await MainActor.run {
                 withAnimation(.smooth(duration: 0.25)) {
-                    pendingImages.append(contentsOf: staged)
+                    pendingImages.append(contentsOf: stagedImages)
+                    pendingVideos.append(contentsOf: stagedVideos)
                     importingImages = false
                 }
             }
         }
     }
 
-    // MARK: File import
+    // MARK: File & Video import from DocumentPicker
 
-    /// Extracts text from picked files and stages them as attachments.
+    /// Extracts text from picked files, and if a picked file is a video
+    /// (`.mp4`, `.mov`, `.m4v`, `.webm`, `.mkv`, `.avi`), saves the video
+    /// directly into the Workspace (`Videos/...`) and stages it as a video!
     private func importFiles(_ urls: [URL]) {
         let remaining = maxFiles - pendingAttachments.count
         guard remaining > 0 else { return }
 
         Task { @MainActor in
-            var staged: [MessageAttachment] = []
+            var stagedAttachments: [MessageAttachment] = []
+            var stagedVideos: [MessageVideo] = []
             for url in urls.prefix(remaining) {
-                staged.append(AttachmentExtractor.extract(from: url))
+                if MediaStore.isVideoFileName(url.lastPathComponent),
+                   let savedVideo = MediaStore.saveVideo(at: url, preferredName: url.lastPathComponent, workspaceFolder: "Videos") {
+                    stagedVideos.append(savedVideo)
+                } else {
+                    // Also copy raw file bytes to uploads/<name> in Workspace
+                    let safeName = WorkspaceStore.sanitizeFolderName(
+                        (url.lastPathComponent as NSString).deletingPathExtension)
+                    let ext = url.pathExtension
+                    let destName = ext.isEmpty ? safeName : "\(safeName).\(ext)"
+                    if let data = try? Data(contentsOf: url) {
+                        _ = try? WorkspaceStore.shared.writeData(path: "uploads/\(destName)", data: data)
+                    }
+                    stagedAttachments.append(AttachmentExtractor.extract(from: url))
+                }
             }
             withAnimation(.smooth(duration: 0.25)) {
-                pendingAttachments.append(contentsOf: staged)
+                pendingVideos.append(contentsOf: stagedVideos)
+                pendingAttachments.append(contentsOf: stagedAttachments)
             }
         }
     }
 
     // MARK: Actions
 
-    /// Arms a skill picked from the "/" overlay: enables it, replaces any
-    /// previously armed skill, clears the slash draft and shows the chip.
     private func armSkill(_ skill: Skill) {
         if let previous = armedSkillID, previous != skill.id {
             skillStore.setEnabled(previous, false)
@@ -587,7 +605,6 @@ struct ComposerView: View {
         skillStore.setEnabled(skill.id, true)
     }
 
-    /// Dismisses the armed-skill chip and disables the skill again.
     private func disarmSkill() {
         if let id = armedSkillID {
             skillStore.setEnabled(id, false)
@@ -602,25 +619,22 @@ struct ComposerView: View {
         guard canSend else { return }
         let text = trimmedDraft
         let images = pendingImages
+        let videos = pendingVideos
         let files = pendingAttachments
         draft = ""
         withAnimation(.smooth(duration: 0.2)) {
             pendingImages = []
+            pendingVideos = []
             pendingAttachments = []
-            // The chip is transient; the skill itself stays enabled so the
-            // outgoing turn picks it up when its prompt is built.
             armedSkillName = nil
             armedSkillID = nil
         }
-        onSend(text, images, files)
+        onSend(text, images, videos, files)
     }
 }
 
 // MARK: - Action panel
 
-/// The V3.5 composer action panel — a Liquid Glass bottom sheet that
-/// replaces the old plus `Menu`. Presented as a real sheet, so every
-/// action fires reliably (no menu-dismissal race, no swallowed taps).
 struct ComposerActionPanel: View {
     var onNewChat: () -> Void
     var onAttachFile: () -> Void
@@ -759,8 +773,6 @@ struct ComposerActionPanel: View {
 
 // MARK: - File attachment chip
 
-/// One staged file: document icon, name, remove button — a capsule chip
-/// sized to match the photo thumbnails' height.
 struct FileAttachmentChip: View {
     let name: String
     let onRemove: () -> Void
@@ -796,15 +808,63 @@ struct FileAttachmentChip: View {
         case "json", "plist": return "curlybraces.square"
         case "csv", "tsv", "xlsx": return "tablecells"
         case "md", "markdown", "txt", "rtf": return "doc.plaintext"
+        case "mp4", "mov", "m4v", "webm", "mkv", "avi": return "video.fill"
         case "zip": return "doc.zipper"
         default: return "doc"
         }
     }
 }
 
+// MARK: - Video attachment thumbnail
+
+private struct VideoAttachmentThumbnail: View {
+    let video: MessageVideo
+    let onRemove: () -> Void
+
+    @State private var thumbnail: UIImage?
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            ZStack {
+                if let thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Rectangle()
+                        .fill(AstralTheme.surfaceSecondary)
+                }
+                Circle()
+                    .fill(Color.black.opacity(0.55))
+                    .frame(width: 26, height: 26)
+                Image(systemName: "play.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: 64, height: 64)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(AstralTheme.separator, lineWidth: 1))
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(AstralTheme.textPrimary)
+                    .background(Circle().fill(AstralTheme.surface))
+            }
+            .offset(x: 6, y: -6)
+        }
+        .task {
+            if let url = MediaStore.videoURL(for: video) {
+                thumbnail = MediaStore.videoThumbnail(for: url, maxDimension: 160)
+            }
+        }
+    }
+}
+
 // MARK: - Attachment thumbnail
 
-/// One staged image: rounded thumbnail plus a remove button.
 private struct AttachmentThumbnail: View {
     let image: MessageImage
     let onRemove: () -> Void
@@ -846,7 +906,6 @@ private struct AttachmentThumbnail: View {
 
 // MARK: - Press feedback
 
-/// Small scale-down press feedback for icon-sized buttons.
 private struct PressableIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

@@ -1,11 +1,12 @@
 import SwiftUI
 import QuickLook
+import AVKit
 
 // MARK: - File preview
 
 /// Sheet preview for a workspace file: rendered markdown, syntax-highlighted
-/// source, inline images, or QuickLook for PDFs, spreadsheets, archives and
-/// everything else.
+/// source, inline images, native AVPlayer for videos, or QuickLook for PDFs,
+/// spreadsheets, archives and everything else.
 struct FilePreviewView: View {
     let file: WorkspaceFile
     let url: URL
@@ -13,13 +14,14 @@ struct FilePreviewView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var text: String?
+    @State private var videoPlayer: AVPlayer?
 
     /// Text preview is capped at 2 MB; larger text files go to QuickLook.
     private var textReadable: Bool {
         switch file.kind {
         case .markdown, .text, .code, .web:
             return file.size <= 2_000_000
-        case .image, .pdf, .spreadsheet, .archive, .other:
+        case .image, .video, .pdf, .spreadsheet, .archive, .other:
             return false
         }
     }
@@ -35,6 +37,9 @@ struct FilePreviewView: View {
             }
         }
         .onAppear(perform: loadText)
+        .onDisappear {
+            videoPlayer?.pause()
+        }
     }
 
     // MARK: Header
@@ -66,6 +71,7 @@ struct FilePreviewView: View {
                 .accessibilityLabel(Text(L("common.share", "Shared")))
 
                 Button {
+                    videoPlayer?.pause()
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
@@ -98,8 +104,29 @@ struct FilePreviewView: View {
             textReadable ? AnyView(codeContent) : AnyView(quickLookContent)
         case .image:
             imageContent
+        case .video:
+            videoContent
         case .pdf, .spreadsheet, .archive, .other:
             quickLookContent
+        }
+    }
+
+    private var videoContent: some View {
+        Group {
+            if let videoPlayer {
+                VideoPlayer(player: videoPlayer)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(AstralTheme.Spacings.m)
+            } else {
+                quickLookContent
+            }
+        }
+        .onAppear {
+            if videoPlayer == nil && FileManager.default.fileExists(atPath: url.path) {
+                let player = AVPlayer(url: url)
+                videoPlayer = player
+                player.play()
+            }
         }
     }
 
@@ -206,8 +233,6 @@ struct FilePreviewView: View {
 
 // MARK: - QuickLook bridge
 
-/// UIKit bridge for previewing arbitrary files (PDF, archives,
-/// spreadsheets, ...).
 fileprivate struct QuickLookView: UIViewControllerRepresentable {
     let url: URL
 

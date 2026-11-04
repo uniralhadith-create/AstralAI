@@ -130,9 +130,9 @@ def main() -> int:
     project = (ROOT / "project.yml").read_text(encoding="utf-8")
     if project.count("5.0.0") != 4:
         failures.append(f"project.yml: expected 4 x 5.0.0, found {project.count('5.0.0')}")
-    target_build = 'CURRENT_PROJECT_VERSION: "12"'
+    target_build = 'CURRENT_PROJECT_VERSION: "13"'
     if project.count(target_build) != 3:
-        failures.append(f"project.yml: expected 3 x build 12, found {project.count(target_build)}")
+        failures.append(f"project.yml: expected 3 x build 13, found {project.count(target_build)}")
 
     for lang in ["en", "ar"]:
         badge = (ROOT / f"AstralAI/Resources/{lang}.lproj/Shared.strings").read_text(encoding="utf-8")
@@ -167,7 +167,7 @@ def main() -> int:
     print("V5.0.0 SANITY: PASS")
     print(f"  {len(all_swift)} Swift files balanced with zero syntax/brace errors")
     print(f"  {len(STRING_TABLES)} localization tables × en/ar: zero duplicates, 100% parity")
-    print("  V5.0.0 release invariants OK (5.0.0 / build 12 / badges / banners)")
+    print("  V5.0.0 release invariants OK (5.0.0 / build 13 / badges / banners)")
     print("  AstralComputerIcon custom vector icon + V5 Liquid Glass shimmer verified")
     print("  astra-os 5.0.0 Linux FHS + 60+ commands (jq, awk, git, apt, wget, neofetch...) verified")
     return 0

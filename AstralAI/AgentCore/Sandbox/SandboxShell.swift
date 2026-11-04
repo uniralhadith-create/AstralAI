@@ -2,6 +2,8 @@ import Foundation
 import Combine
 import JavaScriptCore
 import CryptoKit
+import AVFoundation
+import SQLite3
 
 // MARK: - Sandbox entries
 
@@ -48,19 +50,22 @@ struct SandboxResult: Equatable {
     var failed: Bool { exitCode != 0 }
 }
 
-// MARK: - astra-os 5.0.0 Linux Kernel & Shell
+// MARK: - astra-os Linux Kernel & Shell
 
-/// The agent's persistent Linux workstation environment ("astra-os 5.0.0")
+/// The agent's persistent Linux workstation environment ("astra-os")
 /// rooted at `/home/astral` with a complete Linux Filesystem Hierarchy
 /// (`/etc`, `/var`, `/tmp`, `/proc`, `/usr`, `/bin`, `/home/astral`),
 /// root privilege simulation (`sudo`, `id`, `whoami`, `uname`, `hostname`),
 /// persistent environment variables (`export`), local package & git
-/// management (`apt`, `pkg`, `git`), archive & JSON/YAML/CSV tools (`tar`,
-/// `zip`, `unzip`, `jq`, `awk`, `sed`, `xargs`, `tee`), process & hardware
-/// inspection (`ps`, `top`, `free`, `lscpu`, `uptime`, `df`, `du`, `neofetch`),
+/// management (`apt`, `pkg`, `git`), real SQLite database engine (`sqlite3`),
+/// video synthesis & media inspection (`ffmpeg`, `ffprobe`, `yt-dlp`),
+/// archive & JSON/YAML/CSV tools (`tar`, `zip`, `unzip`, `jq`, `awk`, `sed`,
+/// `xargs`, `tee`, `column`, `paste`, `bc`, `expr`, `xxd`, `hexdump`),
+/// process & service inspection (`ps`, `top`, `free`, `lscpu`, `uptime`, `df`,
+/// `du`, `neofetch`, `systemctl`, `service`, `crontab`, `lsof`, `netstat`, `ss`),
 /// network & live web scraping (`curl`, `wget`, `ping`, `dig`, `nslookup`,
-/// `ifconfig`, `ip`, `netstat`, `search`), and bidirectional workspace sync
-/// with Python 3.12 (Pyodide WASM) and Node.js (JavaScriptCore).
+/// `ifconfig`, `ip`, `search`), and bidirectional workspace sync
+/// with Python 3.12 (Pyodide WASM) and Node.js (JavaScriptCore + `fs` module).
 @MainActor
 final class SandboxShell: ObservableObject {
 
@@ -85,7 +90,7 @@ final class SandboxShell: ObservableObject {
     /// The identity of the environment, reported by `uname` and `TerminalView`.
     static let osName =
         "astra-os 5.0.0 (Astral Linux Kernel 6.12-arm64) iOS/arm64 - Root FHS Shell "
-        + "(pipes, &&, ||, ;, $VAR) + Python 3.12 + Node.js + WebKit Engine + Ubuntu Cloud"
+        + "(pipes, &&, ||, ;, $VAR) + Python 3.12 + Node.js + SQLite3 + FFmpeg + WebKit Engine + Ubuntu Cloud"
 
     private let fileManager = FileManager.default
     private let bootDate = Date()
@@ -99,14 +104,15 @@ final class SandboxShell: ObservableObject {
         "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         "TMPDIR": "/tmp",
         "TERM": "xterm-256color",
-        "ASTRAL_VERSION": "5.0.0",
+        "ASTRAL_AGENT": "Astral AI",
     ]
 
     /// Locally installed packages tracked across sessions (`apt install`).
     private var installedPackages: Set<String> = [
         "coreutils", "bash", "curl", "wget", "git", "jq", "python3", "python3-pip",
-        "nodejs", "sqlite3", "zip", "unzip", "tar", "grep", "sed", "gawk", "procps",
-        "net-tools", "dnsutils", "ca-certificates", "openssl", "neofetch",
+        "nodejs", "sqlite3", "ffmpeg", "yt-dlp", "zip", "unzip", "tar", "grep",
+        "sed", "gawk", "bc", "procps", "net-tools", "dnsutils", "lsof",
+        "ca-certificates", "openssl", "neofetch",
     ]
 
     /// Documents/AstralWorkspace — same root the Files tab shows.
@@ -147,16 +153,16 @@ final class SandboxShell: ObservableObject {
     }
 
     /// Seeds realistic Linux `/etc/os-release`, `/etc/hostname`, `/etc/hosts`,
-    /// and `/etc/passwd` so scripts or agent probes inspecting `/etc/*` work
-    /// exactly like on Ubuntu/Debian Linux.
+    /// `/etc/passwd`, and `/etc/crontab` so scripts or agent probes inspecting
+    /// `/etc/*` work like on Ubuntu/Debian Linux.
     private func seedSystemFilesIfNeeded() {
         let osRelease = etcURL.appendingPathComponent("os-release")
         if !fileManager.fileExists(atPath: osRelease.path) {
             let content = """
-            PRETTY_NAME="Astra-OS GNU/Linux 5.0.0 LTS (iOS 27 Liquid)"
+            PRETTY_NAME="Astra-OS GNU/Linux 5.0.0 LTS (Astral AI)"
             NAME="Astra-OS"
             VERSION_ID="5.0.0"
-            VERSION="5.0.0 LTS (Astral V5)"
+            VERSION="5.0.0 LTS (Astral AI)"
             ID=astra
             ID_LIKE=debian ubuntu
             HOME_URL="https://uniral.com/astral"
@@ -176,6 +182,11 @@ final class SandboxShell: ObservableObject {
         if !fileManager.fileExists(atPath: passwdFile.path) {
             let passwd = "root:x:0:0:root:/home/astral:/bin/bash\nastral:x:1000:1000:Astral AI:/home/astral:/bin/bash\n"
             try? passwd.data(using: .utf8)?.write(to: passwdFile, options: .atomic)
+        }
+        let crontabFile = etcURL.appendingPathComponent("crontab")
+        if !fileManager.fileExists(atPath: crontabFile.path) {
+            let cron = "# /etc/crontab: system-wide crontab for astra-os\nSHELL=/bin/bash\nPATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n"
+            try? cron.data(using: .utf8)?.write(to: crontabFile, options: .atomic)
         }
     }
 
@@ -216,7 +227,7 @@ final class SandboxShell: ObservableObject {
         history = []
     }
 
-    // MARK: - Pipeline engine (V5.0.0 — Full Shell with |, &&, ||, ;, 2>&1, $VAR)
+    // MARK: - Pipeline engine (Full Shell with |, &&, ||, ;, 2>&1, $VAR)
 
     private struct ParsedStatement {
         var segments: [String]
@@ -228,8 +239,6 @@ final class SandboxShell: ObservableObject {
         case op(String)
     }
 
-    /// Splits a command line at top-level `;`, `&&`, `||` and `|`, ignoring
-    /// everything inside single or double quotes.
     private static func scanTokens(_ line: String) -> [ShellToken] {
         var tokens: [ShellToken] = []
         var current = ""
@@ -311,7 +320,6 @@ final class SandboxShell: ObservableObject {
     }
 
     private func executePipeline(_ command: String) async -> SandboxResult {
-        // Strip harmless `2>&1` or `2>/dev/null` markers so complex Linux one-liners succeed cleanly.
         let cleanedCommand = command
             .replacingOccurrences(of: "2>&1", with: "")
             .replacingOccurrences(of: "2>/dev/null", with: "")
@@ -436,6 +444,10 @@ final class SandboxShell: ObservableObject {
         case "jq": result = jq(operands, stdin: stdin)
         case "xargs": result = await xargs(operands, stdin: stdin)
         case "tee": result = tee(operands, stdin: stdin)
+        case "column": result = columnCommand(operands, stdin: stdin)
+        case "paste": result = pasteCommand(operands, stdin: stdin)
+        case "bc", "expr": result = mathCommand(name: name, args: operands, stdin: stdin)
+        case "xxd", "hexdump": result = hexdumpCommand(operands, stdin: stdin)
         case "stat": result = stat(operands)
         case "file": result = fileCommand(operands)
         case "du": result = du(operands)
@@ -456,6 +468,10 @@ final class SandboxShell: ObservableObject {
         case "hostname": result = .ok("astra-os")
         case "id": result = .ok("uid=0(root) gid=0(root) groups=0(root),1000(astral)")
         case "neofetch", "fastfetch", "screenfetch": result = neofetch()
+        case "systemctl", "service": result = systemctlCommand(operands)
+        case "crontab": result = crontabCommand(operands)
+        case "lsof": result = lsofCommand()
+        case "netstat", "ss": result = netstatCommand()
         case "env", "printenv": result = envCommand()
         case "export": result = exportCommand(operands)
         case "unset": result = unsetCommand(operands)
@@ -486,6 +502,10 @@ final class SandboxShell: ObservableObject {
         case "tar": result = tarCommand(operands)
         case "zip": result = zipCommand(operands)
         case "unzip": result = unzipCommand(operands)
+        case "sqlite3": result = sqlite3Command(operands, stdin: stdin)
+        case "ffmpeg": result = await ffmpegCommand(operands)
+        case "ffprobe": result = ffprobeCommand(operands)
+        case "yt-dlp", "youtube-dl": result = await ytdlpCommand(operands)
         case "python3", "python": result = await python(operands)
         case "pip", "pip3": result = await pip(operands)
         case "node": result = await node(operands)
@@ -629,7 +649,6 @@ final class SandboxShell: ObservableObject {
 
         var chunks: [String] = []
         for path in paths {
-            // Virtual /proc files
             if let procContent = virtualProcFile(path) {
                 chunks.append(procContent)
                 continue
@@ -1120,9 +1139,8 @@ final class SandboxShell: ObservableObject {
         return .ok(text)
     }
 
-    // MARK: V5 Advanced Text & JSON Tools (`awk`, `jq`, `xargs`, `tee`)
+    // MARK: Advanced Text, Math & JSON Tools (`awk`, `jq`, `xargs`, `tee`, `column`, `paste`, `bc`, `xxd`)
 
-    /// `awk '{print $1, $3}' [file]` — extracts columns by whitespace or `-F` delimiter.
     private func awk(_ args: [String], stdin: String? = nil) -> SandboxResult {
         var delimiter: String?
         var program: String?
@@ -1151,7 +1169,6 @@ final class SandboxShell: ObservableObject {
         let input = filterInput(files, stdin: stdin)
         guard let text = input.text else { return input.error ?? .error("awk: no input") }
 
-        // Extract requested field numbers `$1`, `$2`, `$0`, `$NF`
         var fieldIndices: [Int] = []
         let regex = try? NSRegularExpression(pattern: "\\$(\\d+|NF)")
         let ns = program as NSString
@@ -1182,7 +1199,6 @@ final class SandboxShell: ObservableObject {
         return .ok(outputLines.joined(separator: "\n"))
     }
 
-    /// `jq [filter] [file]` — pretty-prints JSON and evaluates dot-paths (`.key.0.name`).
     private func jq(_ args: [String], stdin: String? = nil) -> SandboxResult {
         let nonFlags = args.filter { !$0.hasPrefix("-") }
         let rawOutput = args.contains("-r")
@@ -1238,7 +1254,6 @@ final class SandboxShell: ObservableObject {
         return .ok(formatted.joined(separator: "\n"))
     }
 
-    /// `xargs <command>` — appends piped items as arguments to `<command>`.
     private func xargs(_ args: [String], stdin: String? = nil) async -> SandboxResult {
         let baseCommand = args.isEmpty ? "echo" : args.joined(separator: " ")
         let items = (stdin ?? "")
@@ -1248,7 +1263,6 @@ final class SandboxShell: ObservableObject {
         return await execute("\(baseCommand) \(items.joined(separator: " "))")
     }
 
-    /// `tee [-a] <file>` — writes piped stdin to `<file>` and also prints to stdout.
     private func tee(_ args: [String], stdin: String? = nil) -> SandboxResult {
         let append = args.contains("-a")
         let files = args.filter { !$0.hasPrefix("-") }
@@ -1257,6 +1271,108 @@ final class SandboxShell: ObservableObject {
             _ = applyRedirect(content, to: file, append: append)
         }
         return .ok(content)
+    }
+
+    private func columnCommand(_ args: [String], stdin: String? = nil) -> SandboxResult {
+        var sep: String?
+        var files: [String] = []
+        var i = 0
+        while i < args.count {
+            let arg = args[i]
+            if arg == "-s", i + 1 < args.count {
+                sep = args[i + 1]
+                i += 2
+                continue
+            } else if arg.hasPrefix("-s"), arg.count > 2 {
+                sep = String(arg.dropFirst(2))
+                i += 1
+                continue
+            } else if !arg.hasPrefix("-") {
+                files.append(arg)
+            }
+            i += 1
+        }
+        let input = filterInput(files, stdin: stdin)
+        guard let text = input.text else { return input.error ?? .error("column: no input") }
+        let rows: [[String]] = linesOf(text).map { line in
+            if let sep {
+                return line.components(separatedBy: sep)
+            }
+            return line.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        }
+        let colCount = rows.map(\.count).max() ?? 0
+        guard colCount > 0 else { return .ok(text) }
+        var widths = [Int](repeating: 0, count: colCount)
+        for row in rows {
+            for (c, val) in row.enumerated() {
+                widths[c] = max(widths[c], val.count)
+            }
+        }
+        let formatted = rows.map { row -> String in
+            row.enumerated().map { c, val in
+                val.padding(toLength: widths[c], withPad: " ", startingAt: 0)
+            }.joined(separator: "  ")
+        }
+        return .ok(formatted.joined(separator: "\n"))
+    }
+
+    private func pasteCommand(_ args: [String], stdin: String? = nil) -> SandboxResult {
+        let files = args.filter { !$0.hasPrefix("-") }
+        guard !files.isEmpty else { return .ok(stdin ?? "") }
+        var fileLines: [[String]] = []
+        for path in files {
+            guard let url = resolvedURL(path),
+                  let text = try? String(contentsOf: url, encoding: .utf8) else {
+                return .error("paste: \(path): No such file or directory")
+            }
+            fileLines.append(linesOf(text))
+        }
+        let maxCount = fileLines.map(\.count).max() ?? 0
+        var out: [String] = []
+        for rowIdx in 0..<maxCount {
+            let row = fileLines.map { rowIdx < $0.count ? $0[rowIdx] : "" }.joined(separator: "\t")
+            out.append(row)
+        }
+        return .ok(out.joined(separator: "\n"))
+    }
+
+    private func mathCommand(name: String, args: [String], stdin: String?) -> SandboxResult {
+        let rawExpr = (name == "expr" ? args.joined(separator: " ") : (stdin ?? args.joined(separator: " ")))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawExpr.isEmpty else { return .ok("0") }
+        guard let js = JSContext() else { return .error("\(name): math engine unavailable") }
+        let jsExpr = rawExpr.replacingOccurrences(of: "^", with: "**")
+        if let val = js.evaluateScript(jsExpr), !val.isUndefined {
+            return .ok(val.toString() ?? "0")
+        }
+        return .error("\(name): syntax error in '\(rawExpr)'")
+    }
+
+    private func hexdumpCommand(_ args: [String], stdin: String?) -> SandboxResult {
+        let files = args.filter { !$0.hasPrefix("-") }
+        let data: Data
+        if let path = files.first {
+            guard let url = resolvedURL(path), let d = try? Data(contentsOf: url) else {
+                return .error("xxd: \(path): No such file or directory")
+            }
+            data = d
+        } else if let stdin {
+            data = Data(stdin.utf8)
+        } else {
+            return .error("usage: xxd <file>")
+        }
+        let slice = data.prefix(512)
+        var lines: [String] = []
+        var offset = 0
+        while offset < slice.count {
+            let end = min(offset + 16, slice.count)
+            let chunk = slice[offset..<end]
+            let hex = chunk.map { String(format: "%02x", $0) }.joined(separator: " ")
+            let ascii = chunk.map { (32...126).contains($0) ? String(UnicodeScalar($0)) : "." }.joined()
+            lines.append(String(format: "%08x: %-47s  %@", offset, (hex as NSString).utf8String!, ascii))
+            offset += 16
+        }
+        return .ok(lines.joined(separator: "\n"))
     }
 
     // MARK: Text pipeline commands
@@ -1603,7 +1719,7 @@ final class SandboxShell: ObservableObject {
         return .ok("\(hex)  \(path)")
     }
 
-    // MARK: System & Hardware Inspection (`df`, `free`, `ps`, `lscpu`, `uptime`, `neofetch`)
+    // MARK: System & Hardware Inspection (`df`, `free`, `ps`, `lscpu`, `uptime`, `neofetch`, `systemctl`, `crontab`, `lsof`, `netstat`)
 
     private func df(_ args: [String]) -> SandboxResult {
         let flags = args.filter { $0.hasPrefix("-") }
@@ -1652,7 +1768,7 @@ final class SandboxShell: ObservableObject {
             """
             USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
             root         1  0.0  0.1  16840  4200 ?        Ss   00:00   0:01 /sbin/init
-            root        42  0.2  0.8 184200 28400 ?        Sl   00:00   0:04 /usr/bin/astra-agentd --v5
+            root        42  0.2  0.8 184200 28400 ?        Sl   00:00   0:04 /usr/bin/astra-agentd
             astral     101  0.1  0.5  96400 18200 pts/0    Ss   00:00   0:02 /bin/bash
             astral     148  0.0  0.4  64200 12100 pts/0    S    00:00   0:00 python3 -m pyodide.kernel
             astral     212  0.0  0.1  12400  3200 pts/0    R+   00:00   0:00 ps aux
@@ -1669,7 +1785,7 @@ final class SandboxShell: ObservableObject {
             Byte Order:              Little Endian
             CPU(s):                  \(cores)
             Vendor ID:               Apple
-            Model name:              Apple Silicon ARM64 (Astra-OS V5 Kernel)
+            Model name:              Apple Silicon ARM64 (Astra-OS Kernel)
             Thread(s) per core:      1
             Core(s) per socket:      \(cores)
             Socket(s):               1
@@ -1690,13 +1806,75 @@ final class SandboxShell: ObservableObject {
                   /\\          root@astra-os
                  /  \\         -------------
                 / /\\ \\        OS: Astra-OS GNU/Linux 5.0.0 LTS (aarch64)
-               / /  \\ \\       Host: Apple iPhone (iOS 27 Liquid Glass V5)
+               / /  \\ \\       Host: Apple iPhone (Astral AI)
               / /    \\ \\      Kernel: 6.12.0-astra-arm64
              / /      \\ \\     Shell: bash 5.2.21 (pipes, &&, ||, ;, $VAR)
             /_/        \\_\\    Packages: \(installedPackages.count) (apt/pip)
                               CPU: Apple ARM64 (\(cores) cores)
                               Memory: \(totalGB)
-                              Runtimes: Python 3.12 (WASM), Node.js (JSC), E2B Ubuntu
+                              Runtimes: Python 3.12 (WASM), Node.js (fs), SQLite3, FFmpeg
+            """)
+    }
+
+    private func systemctlCommand(_ args: [String]) -> SandboxResult {
+        let sub = args.first?.lowercased() ?? "status"
+        let svc = args.dropFirst().first ?? "astra-agentd"
+        if sub == "list-units" {
+            return .ok(
+                """
+                UNIT                   LOAD   ACTIVE SUB     DESCRIPTION
+                astra-agentd.service   loaded active running Astral AI Autonomous Agent Daemon
+                astra-pyodide.service  loaded active running CPython 3.12 WebAssembly Engine
+                astra-webkit.service   loaded active running Headless & Interactive WebKit Engine
+                cron.service           loaded active running Regular background program processing daemon
+                """)
+        }
+        return .ok(
+            """
+            ● \(svc).service - Astral AI Service (\(svc))
+                 Loaded: loaded (/lib/systemd/system/\(svc).service; enabled)
+                 Active: active (running) since boot
+               Main PID: 42 (\(svc))
+            """)
+    }
+
+    private func crontabCommand(_ args: [String]) -> SandboxResult {
+        let cronFile = etcURL.appendingPathComponent("crontab")
+        if args.contains("-l") {
+            let content = (try? String(contentsOf: cronFile, encoding: .utf8)) ?? ""
+            return .ok(content)
+        }
+        if args.contains("-r") {
+            try? "# cleared crontab\n".data(using: .utf8)?.write(to: cronFile)
+            return .ok()
+        }
+        if let fileArg = args.first(where: { !$0.hasPrefix("-") }),
+           let url = resolvedURL(fileArg),
+           let content = try? String(contentsOf: url, encoding: .utf8) {
+            try? content.data(using: .utf8)?.write(to: cronFile)
+            return .ok("crontab: installed new crontab from \(fileArg)")
+        }
+        return .ok((try? String(contentsOf: cronFile, encoding: .utf8)) ?? "")
+    }
+
+    private func lsofCommand() -> SandboxResult {
+        return .ok(
+            """
+            COMMAND     PID   USER   FD   TYPE DEVICE SIZE/OFF NODE NAME
+            init          1   root  cwd    DIR    1,1      512    2 /
+            astra-age    42   root  cwd    DIR    1,4     1024  100 /home/astral
+            bash        101 astral  cwd    DIR    1,4     1024  100 \(cwd)
+            python3     148 astral  mem    REG    1,4  9840120  204 /usr/lib/pyodide.wasm
+            """)
+    }
+
+    private func netstatCommand() -> SandboxResult {
+        return .ok(
+            """
+            Active Internet connections (servers and established)
+            Proto Recv-Q Send-Q Local Address           Foreign Address         State
+            tcp        0      0 127.0.0.1:8080          0.0.0.0:*               LISTEN
+            tcp        0      0 192.168.1.100:52418     104.18.32.47:443        ESTABLISHED
             """)
     }
 
@@ -1734,13 +1912,15 @@ final class SandboxShell: ObservableObject {
         let known: Set<String> = [
             "help", "man", "pwd", "ls", "cd", "cat", "echo", "printf", "mkdir", "rmdir",
             "touch", "rm", "cp", "mv", "ln", "grep", "egrep", "fgrep", "rg", "find", "wc",
-            "head", "tail", "tree", "sed", "awk", "jq", "xargs", "tee", "stat", "file",
-            "du", "sort", "uniq", "cut", "tr", "rev", "diff", "seq", "base64", "md5sum",
-            "shasum", "sha256sum", "df", "free", "ps", "top", "lscpu", "nproc", "uptime",
-            "hostname", "id", "neofetch", "env", "export", "unset", "which", "basename",
-            "dirname", "realpath", "chmod", "chown", "sleep", "date", "uname", "whoami",
-            "history", "clear", "curl", "wget", "ping", "dig", "nslookup", "ifconfig",
-            "ip", "search", "apt", "apt-get", "pkg", "git", "tar", "zip", "unzip",
+            "head", "tail", "tree", "sed", "awk", "jq", "xargs", "tee", "column", "paste",
+            "bc", "expr", "xxd", "hexdump", "stat", "file", "du", "sort", "uniq", "cut",
+            "tr", "rev", "diff", "seq", "base64", "md5sum", "shasum", "sha256sum", "df",
+            "free", "ps", "top", "lscpu", "nproc", "uptime", "hostname", "id", "neofetch",
+            "systemctl", "service", "crontab", "lsof", "netstat", "ss", "env", "export",
+            "unset", "which", "basename", "dirname", "realpath", "chmod", "chown", "sleep",
+            "date", "uname", "whoami", "history", "clear", "curl", "wget", "ping", "dig",
+            "nslookup", "ifconfig", "ip", "search", "apt", "apt-get", "pkg", "git", "tar",
+            "zip", "unzip", "sqlite3", "ffmpeg", "ffprobe", "yt-dlp", "youtube-dl",
             "python3", "python", "pip", "pip3", "node", "bash", "sh", "true", "false",
         ]
         let names = args.filter { !$0.hasPrefix("-") }
@@ -1922,7 +2102,6 @@ final class SandboxShell: ObservableObject {
         }
     }
 
-    /// Built-in Git porcelain (`init`, `status`, `add`, `commit`, `log`, `branch`, `diff`, `clone`)
     private func gitCommand(_ args: [String]) async -> SandboxResult {
         guard let sub = args.first?.lowercased() else {
             return .ok("git version 2.45.2 (astra-os arm64)")
@@ -1971,7 +2150,6 @@ final class SandboxShell: ObservableObject {
             let repoName = ((repoURL as NSString).lastPathComponent as NSString).deletingPathExtension
             let dest = resolvedURL(repoName.isEmpty ? "repo" : repoName, allowNew: true) ?? homeURL.appendingPathComponent("repo")
             try? fileManager.createDirectory(at: dest, withIntermediateDirectories: true)
-            // Fetch README if GitHub URL
             if repoURL.contains("github.com") {
                 let rawBase = repoURL
                     .replacingOccurrences(of: ".git", with: "")
@@ -2019,6 +2197,231 @@ final class SandboxShell: ObservableObject {
         return .ok("tar: archive operation completed")
     }
 
+    // MARK: Real SQLite3 Engine (`sqlite3`)
+
+    /// Executes real SQLite3 queries against a database file in `/home/astral`
+    /// using iOS's native `libsqlite3`.
+    private func sqlite3Command(_ args: [String], stdin: String?) -> SandboxResult {
+        if args.contains("--version") || args.contains("-version") {
+            let ver = String(cString: sqlite3_libversion())
+            return .ok("\(ver) aarch64-astralos-linux-gnu")
+        }
+        let nonFlags = args.filter { !$0.hasPrefix("-") }
+        guard let dbPath = nonFlags.first else {
+            return .error("usage: sqlite3 <db.sqlite> [\"SQL;\"]")
+        }
+        let sqlInput = nonFlags.count > 1 ? nonFlags.dropFirst().joined(separator: " ") : (stdin ?? "")
+        guard !sqlInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .ok("SQLite version \(String(cString: sqlite3_libversion())) — pass a SQL query or pipe SQL into sqlite3.")
+        }
+
+        let resolvedDB: String
+        if dbPath == ":memory:" {
+            resolvedDB = ":memory:"
+        } else if let url = resolvedURL(dbPath, allowNew: true) {
+            try? fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            resolvedDB = url.path
+        } else {
+            return .error("sqlite3: invalid database path '\(dbPath)'")
+        }
+
+        var db: OpaquePointer?
+        guard sqlite3_open(resolvedDB, &db) == SQLITE_OK else {
+            let msg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unable to open database"
+            if db != nil { sqlite3_close(db) }
+            return .error("sqlite3: \(msg)")
+        }
+        defer {
+            sqlite3_close(db)
+            WorkspaceStore.shared.refresh()
+        }
+
+        let trimmedSQL = sqlInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let actualSQL: String
+        if trimmedSQL == ".tables" {
+            actualSQL = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
+        } else if trimmedSQL == ".schema" {
+            actualSQL = "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL;"
+        } else {
+            actualSQL = trimmedSQL
+        }
+
+        var outputLines: [String] = []
+        let statements = actualSQL.split(separator: ";").map(String.init).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        for stmtSQL in statements {
+            var stmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, stmtSQL, -1, &stmt, nil) != SQLITE_OK {
+                let err = String(cString: sqlite3_errmsg(db))
+                return .error("sqlite3 error: \(err)")
+            }
+            defer { sqlite3_finalize(stmt) }
+
+            let colCount = sqlite3_column_count(stmt)
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                var cols: [String] = []
+                for c in 0..<colCount {
+                    if let cStr = sqlite3_column_text(stmt, c) {
+                        cols.append(String(cString: cStr))
+                    } else {
+                        cols.append("")
+                    }
+                }
+                outputLines.append(cols.joined(separator: "|"))
+            }
+        }
+        return .ok(outputLines.joined(separator: "\n"))
+    }
+
+    // MARK: Video & Media Engine (`ffmpeg`, `ffprobe`, `yt-dlp`)
+
+    /// Synthesizes or processes real H.264 `.mp4` videos in the Workspace
+    /// and registers them with `VideoDelivery` so they can be shown in chat.
+    private func ffmpegCommand(_ args: [String]) async -> SandboxResult {
+        if args.contains("-version") || args.contains("--version") {
+            return .ok("ffmpeg version 7.0.2-astra-os (aarch64) built with Apple AVFoundation H.264 hardware encoder")
+        }
+        guard let outputArg = args.last(where: { !$0.hasPrefix("-") }) else {
+            return .error("usage: ffmpeg [options] <output.mp4>")
+        }
+
+        // Check if `-i <input>` points to an existing video in the workspace
+        var inputFiles: [URL] = []
+        var i = 0
+        while i < args.count {
+            if args[i] == "-i", i + 1 < args.count {
+                if let url = resolvedURL(args[i + 1]),
+                   fileManager.fileExists(atPath: url.path) {
+                    inputFiles.append(url)
+                }
+                i += 2
+                continue
+            }
+            i += 1
+        }
+
+        // Determine relative workspace path for output
+        let targetURL = resolvedURL(outputArg, allowNew: true) ?? homeURL.appendingPathComponent("Videos/\((outputArg as NSString).lastPathComponent)")
+        let homeStd = homeURL.standardizedFileURL.path
+        let targetStd = targetURL.standardizedFileURL.path
+        let relativePath = targetStd.hasPrefix(homeStd + "/")
+            ? String(targetStd.dropFirst(homeStd.count + 1))
+            : "Videos/\(targetURL.lastPathComponent)"
+
+        // If an input video already exists, copy/remux it to the target path
+        if let firstInput = inputFiles.first,
+           MediaStore.isVideoFileName(firstInput.lastPathComponent),
+           let data = try? Data(contentsOf: firstInput),
+           let saved = MediaStore.saveVideo(
+               data: data,
+               preferredName: (relativePath as NSString).lastPathComponent,
+               workspaceFolder: (relativePath as NSString).deletingLastPathComponent) {
+            VideoDelivery.store(callID: nil, video: saved)
+            return .ok("ffmpeg: encoded '\(saved.workspacePath)' (\(data.count) bytes, H.264 MP4) and saved in Workspace.")
+        }
+
+        // Extract optional title/text from drawtext or metadata flags
+        var title = (relativePath as NSString).lastPathComponent
+        let joinedArgs = args.joined(separator: " ")
+        if let range = joinedArgs.range(of: "text=") {
+            let after = String(joinedArgs[range.upperBound...])
+            let cleaned = after.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                .components(separatedBy: CharacterSet(charactersIn: ":'\"")).first ?? title
+            if !cleaned.isEmpty { title = cleaned }
+        }
+        let imageInputs = inputFiles.filter { FileKind(fileName: $0.lastPathComponent) == .image }
+
+        do {
+            let video = try await VideoSynthesizer.generateMP4(
+                title: title,
+                subtitle: "Generated on astra-os · H.264 MP4",
+                imageURLs: imageInputs,
+                durationSeconds: 4.0,
+                outputPath: relativePath)
+            VideoDelivery.store(callID: nil, video: video)
+            return .ok("ffmpeg: generated H.264 MP4 video at \(video.workspacePath) (\(video.fileSize ?? 0) bytes) in Workspace.")
+        } catch {
+            return .error("ffmpeg: \(error.localizedDescription)")
+        }
+    }
+
+    /// Inspects a video/media file in `/home/astral` using `AVURLAsset`.
+    private func ffprobeCommand(_ args: [String]) -> SandboxResult {
+        guard let path = args.last(where: { !$0.hasPrefix("-") }),
+              let url = resolvedURL(path),
+              fileManager.fileExists(atPath: url.path) else {
+            return .error("usage: ffprobe <video-file>")
+        }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let asset = AVURLAsset(url: url)
+        let duration = CMTimeGetSeconds(asset.duration)
+        let durSec = (duration.isFinite && duration > 0) ? duration : 0.0
+        let vTracks = asset.tracks(withMediaType: .video)
+        let aTracks = asset.tracks(withMediaType: .audio)
+        var res = "1280x720"
+        var fps: Float = 24.0
+        if let vt = vTracks.first {
+            let sz = vt.naturalSize.applying(vt.preferredTransform)
+            res = "\(Int(abs(sz.width)))x\(Int(abs(sz.height)))"
+            if vt.nominalFrameRate > 0 { fps = vt.nominalFrameRate }
+        }
+        return .ok(
+            """
+            Input #0, mov,mp4,m4a,3gp, from '\(path)':
+              Duration: \(String(format: "%02d:%02d:%05.2f", Int(durSec) / 3600, (Int(durSec) % 3600) / 60, durSec.truncatingRemainder(dividingBy: 60))), size: \(size) bytes
+              Stream #0:0: Video: h264 (High), yuv420p, \(res), \(String(format: "%.1f", fps)) fps
+              Audio streams: \(aTracks.count)
+            """)
+    }
+
+    /// Downloads a video from a URL into `/home/astral/Videos/` and delivers it.
+    private func ytdlpCommand(_ args: [String]) async -> SandboxResult {
+        var outputName: String?
+        var urls: [String] = []
+        var i = 0
+        while i < args.count {
+            let arg = args[i]
+            if (arg == "-o" || arg == "--output"), i + 1 < args.count {
+                outputName = args[i + 1]
+                i += 2
+                continue
+            }
+            if !arg.hasPrefix("-") {
+                urls.append(arg)
+            }
+            i += 1
+        }
+        guard let rawURL = urls.first else {
+            return .error("usage: yt-dlp [-o Videos/output.mp4] <url>")
+        }
+        let targetURLString = rawURL.hasPrefix("http") ? rawURL : "https://" + rawURL
+        guard let url = URL(string: targetURLString) else {
+            return .error("yt-dlp: invalid URL '\(rawURL)'")
+        }
+        do {
+            var req = URLRequest(url: url)
+            req.setValue(
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+                forHTTPHeaderField: "User-Agent")
+            req.timeoutInterval = 45
+            let (data, response) = try await URLSession.shared.data(for: req)
+            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+                return .error("yt-dlp: HTTP \(http.statusCode) from \(rawURL)")
+            }
+            let pref = outputName ?? (url.lastPathComponent.isEmpty ? "video.mp4" : url.lastPathComponent)
+            guard let saved = MediaStore.saveVideo(
+                data: data,
+                preferredName: (pref as NSString).lastPathComponent,
+                workspaceFolder: "Videos") else {
+                return .error("yt-dlp: failed to save video to Workspace")
+            }
+            VideoDelivery.store(callID: nil, video: saved)
+            return .ok("[download] 100% of \(data.count) bytes -> /home/astral/\(saved.workspacePath)")
+        } catch {
+            return .error("yt-dlp: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: Commands — system & network (`uname`, `curl`, `wget`, `ping`, `dig`, `search`)
 
     private func uname(_ args: [String]) -> SandboxResult {
@@ -2037,8 +2440,6 @@ final class SandboxShell: ObservableObject {
         return .ok(lines.joined(separator: "\n"))
     }
 
-    /// `curl <url>` — supports `-X METHOD`, `-H "Header: Value"`, `-d "body"`,
-    /// `-I` (headers only), `-L` (follow redirects), `-s` (silent), and `-o file`.
     private func curl(_ args: [String]) async -> SandboxResult {
         var method = "GET"
         var headers: [String: String] = [:]
@@ -2141,6 +2542,11 @@ final class SandboxShell: ObservableObject {
                     at: target.deletingLastPathComponent(),
                     withIntermediateDirectories: true)
                 try data.write(to: target, options: .atomic)
+                WorkspaceStore.shared.refresh()
+                if MediaStore.isVideoFileName(target.lastPathComponent),
+                   let video = MediaStore.referenceExistingWorkspaceVideo(path: outputPath) {
+                    VideoDelivery.store(callID: nil, video: video)
+                }
                 return .ok("Saved \(data.count) bytes to \(outputPath) (\(urlText))")
             } catch {
                 return .error("curl: cannot write '\(outputPath)'")
@@ -2151,7 +2557,6 @@ final class SandboxShell: ObservableObject {
         return .ok(Self.capped(text, limit: maxOutputChars))
     }
 
-    /// `wget <url> [-O file]` — downloads a file directly into the current directory.
     private func wget(_ args: [String]) async -> SandboxResult {
         var outputFile: String?
         var urls: [String] = []
@@ -2242,14 +2647,8 @@ final class SandboxShell: ObservableObject {
         }
     }
 
-    // MARK: Real runtimes (V5.0.0 — Full Workspace Synchronization with Python & Node)
+    // MARK: Real runtimes (Full Bidirectional Workspace Synchronization with Python & Node)
 
-    /// `python3 script.py` or `python3 -c "code"` — REAL Python through the
-    /// Pyodide WebAssembly engine.
-    ///
-    /// V5.0.0 Upgrade: Text files in the workspace are staged automatically
-    /// into Pyodide's filesystem before execution so `open('file.txt')` works
-    /// out of the box!
     private func python(_ args: [String]) async -> SandboxResult {
         var code: String?
 
@@ -2268,7 +2667,6 @@ final class SandboxShell: ObservableObject {
             return .error("usage: python3 <script.py> | python3 -c \"code\"")
         }
 
-        // Stage readable workspace text files (< 256 KB) into Pyodide FS.
         var stagedFiles: [String: String] = [:]
         for file in WorkspaceStore.shared.list() where file.size < 256_000 {
             if let content = try? WorkspaceStore.shared.read(path: file.relativePath) {
@@ -2301,6 +2699,8 @@ final class SandboxShell: ObservableObject {
         }
     }
 
+    /// Runs JavaScript via `JSContext` with a built-in `fs` module and `process`
+    /// object bridged directly to `/home/astral` in the Workspace.
     private func node(_ args: [String]) async -> SandboxResult {
         var code: String?
 
@@ -2327,10 +2727,69 @@ final class SandboxShell: ObservableObject {
         jsContext.exceptionHandler = { _, value in
             exception = value?.toString()
         }
-        jsContext.evaluateScript(
-            "var console = { log: function() { _astralLog(Array.prototype.join.call(arguments, ' ')); }, error: function() { _astralLog(Array.prototype.join.call(arguments, ' ')); }, warn: function() { _astralLog(Array.prototype.join.call(arguments, ' ')); } };")
+
         let loggingBlock: @convention(block) (String) -> Void = { logs.append($0) }
         jsContext.setObject(loggingBlock, forKeyedSubscript: "_astralLog" as NSString)
+
+        let readFileBlock: @convention(block) (String) -> String = { [weak self] path in
+            guard let self, let url = self.resolvedURL(path),
+                  let text = try? String(contentsOf: url, encoding: .utf8) else {
+                return ""
+            }
+            return text
+        }
+        let writeFileBlock: @convention(block) (String, String) -> Bool = { [weak self] path, content in
+            guard let self, let url = self.resolvedURL(path, allowNew: true) else { return false }
+            try? self.fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            do {
+                try content.data(using: .utf8)?.write(to: url, options: .atomic)
+                WorkspaceStore.shared.refresh()
+                return true
+            } catch {
+                return false
+            }
+        }
+        let existsBlock: @convention(block) (String) -> Bool = { [weak self] path in
+            guard let self, let url = self.resolvedURL(path) else { return false }
+            return self.fileManager.fileExists(atPath: url.path)
+        }
+        let readdirBlock: @convention(block) (String) -> [String] = { [weak self] path in
+            guard let self, let url = self.resolvedURL(path.isEmpty ? "." : path),
+                  let items = try? self.fileManager.contentsOfDirectory(atPath: url.path) else {
+                return []
+            }
+            return items
+        }
+
+        jsContext.setObject(readFileBlock, forKeyedSubscript: "_astralReadFile" as NSString)
+        jsContext.setObject(writeFileBlock, forKeyedSubscript: "_astralWriteFile" as NSString)
+        jsContext.setObject(existsBlock, forKeyedSubscript: "_astralExists" as NSString)
+        jsContext.setObject(readdirBlock, forKeyedSubscript: "_astralReaddir" as NSString)
+
+        jsContext.evaluateScript(
+            """
+            var console = {
+              log: function() { _astralLog(Array.prototype.join.call(arguments, ' ')); },
+              error: function() { _astralLog(Array.prototype.join.call(arguments, ' ')); },
+              warn: function() { _astralLog(Array.prototype.join.call(arguments, ' ')); }
+            };
+            var fs = {
+              readFileSync: function(p) { return _astralReadFile(String(p)); },
+              writeFileSync: function(p, c) { return _astralWriteFile(String(p), String(c)); },
+              existsSync: function(p) { return _astralExists(String(p)); },
+              readdirSync: function(p) { return _astralReaddir(String(p || '.')); }
+            };
+            var require = function(mod) {
+              if (mod === 'fs') return fs;
+              return {};
+            };
+            var process = {
+              cwd: function() { return '\(cwd)'; },
+              platform: 'linux',
+              arch: 'arm64'
+            };
+            """)
+
         let value = jsContext.evaluateScript(code)
 
         if let exception {
@@ -2354,15 +2813,18 @@ final class SandboxShell: ObservableObject {
             Files        ls  ll  cd  pwd  cat  echo  printf  mkdir  touch  rm  cp  mv  ln
                          tree  stat  file  du  wc  head  tail  chmod  chown  realpath  diff
             Text & JSON  grep  find  sed  awk  jq  cut  sort  uniq  tr  rev  xargs  tee  seq
-                         base64  md5sum  shasum  sha256sum
+                         column  paste  bc  expr  xxd  hexdump  base64  md5sum  shasum  sha256sum
+            Video/Media  ffmpeg [options] <out.mp4>   ffprobe <video>   yt-dlp [-o out.mp4] <url>
+            Database     sqlite3 <db.sqlite> ["SQL;"]
             System       neofetch  uname  whoami  id  hostname  ps  top  free  df  lscpu
-                         uptime  env  export  unset  which  date  sleep  history  clear
+                         uptime  systemctl  service  crontab  lsof  netstat  ss
+                         env  export  unset  which  date  sleep  history  clear
             Packages/Git apt (update | install | list)  git (init | status | add | commit | log | clone)
                          zip  unzip  tar
             Network/Web  curl [-X -H -d -I -o] <url>   wget [-O file] <url>   search <query>
                          ping <host>   dig <domain>    ifconfig / ip
-            Runtimes     python3 <file.py> | -c "code" (CPython 3.12 WASM + workspace sync)
-                         pip install <package>         node <file.js> | -e "code"
+            Runtimes     python3 <file.py> | -c "code" (CPython 3.12 WASM + bidirectional workspace sync)
+                         pip install <package>         node <file.js> | -e "code" (with fs module)
             """)
     }
 
@@ -2384,6 +2846,7 @@ final class SandboxShell: ObservableObject {
             } else {
                 try text.data(using: .utf8)?.write(to: target, options: .atomic)
             }
+            WorkspaceStore.shared.refresh()
             return .ok()
         } catch {
             return .error("astra: cannot write '\(path)': \(error.localizedDescription)")
@@ -2392,8 +2855,6 @@ final class SandboxShell: ObservableObject {
 
     // MARK: - Path resolution (Full Linux FHS: /home/astral, /tmp, /etc, /var)
 
-    /// Maps a virtual Linux path (`/home/astral/...`, `/tmp/...`, `/etc/...`,
-    /// `/var/...`, `~`, or relative workspace path) to a concrete file URL.
     private func resolvedURL(_ raw: String, allowNew: Bool = false) -> URL? {
         var path = raw.trimmingCharacters(in: .whitespaces)
         guard !path.isEmpty else { return nil }
@@ -2438,7 +2899,6 @@ final class SandboxShell: ObservableObject {
             return varURL.appendingPathComponent(relative)
         }
 
-        // Allow shorthand `/workspace/...` or top-level relative paths under homeURL
         if allowNew, !normalized.hasPrefix("/proc"), !normalized.hasPrefix("/dev") {
             let relative = String(normalized.dropFirst())
             return homeURL.appendingPathComponent(relative)
@@ -2514,9 +2974,6 @@ final class SandboxShell: ObservableObject {
             + "\n… [output truncated — refine the command or write to a file]"
     }
 
-    /// Best-effort conversion of an HTTP body into readable text: HTML is
-    /// stripped into clean structured text while preserving links and headings;
-    /// anything else is decoded as UTF-8.
     static func bodyText(from data: Data, url: URL) -> String {
         let raw = String(data: data, encoding: .utf8)
             ?? String(decoding: data, as: UTF8.self)

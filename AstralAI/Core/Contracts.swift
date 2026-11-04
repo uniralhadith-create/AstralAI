@@ -168,6 +168,39 @@ public struct MessageImage: Codable, Equatable, Hashable, Identifiable {
     }
 }
 
+/// A video attached to a user message or delivered by the agent in chat.
+/// The video file is stored inside the Workspace (`Documents/AstralWorkspace/Videos/...`
+/// or the relative workspace path) so it is always accessible in the Files tab.
+public struct MessageVideo: Codable, Equatable, Hashable, Identifiable {
+    public var id: UUID
+    /// Display or file name, e.g. "demo.mp4".
+    public var fileName: String
+    /// Workspace-relative path where the video is saved, e.g. "Videos/demo.mp4".
+    public var workspacePath: String
+    /// MIME type, e.g. "video/mp4" or "video/quicktime".
+    public var mimeType: String
+    /// Optional duration in seconds.
+    public var durationSeconds: Double?
+    /// Optional file size in bytes.
+    public var fileSize: Int64?
+
+    public init(
+        id: UUID = UUID(),
+        fileName: String,
+        workspacePath: String,
+        mimeType: String = "video/mp4",
+        durationSeconds: Double? = nil,
+        fileSize: Int64? = nil
+    ) {
+        self.id = id
+        self.fileName = fileName
+        self.workspacePath = workspacePath
+        self.mimeType = mimeType
+        self.durationSeconds = durationSeconds
+        self.fileSize = fileSize
+    }
+}
+
 /// A file attached to a user message. The extracted plain text travels
 /// with the message (capped by the importer) so the model can read it;
 /// the UI shows only the lightweight name chip.
@@ -202,6 +235,8 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
     public var name: String?
     /// Images attached to this message (role == .user) for vision input.
     public var images: [MessageImage]?
+    /// Videos attached to this message or delivered by a tool in chat.
+    public var videos: [MessageVideo]?
     /// Files attached to this message (role == .user); their extracted
     /// text is appended to the wire content (see `wireContent`).
     public var attachments: [MessageAttachment]?
@@ -215,6 +250,7 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
         toolCallId: String? = nil,
         name: String? = nil,
         images: [MessageImage]? = nil,
+        videos: [MessageVideo]? = nil,
         attachments: [MessageAttachment]? = nil,
         createdAt: Date = Date()
     ) {
@@ -225,25 +261,43 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
         self.toolCallId = toolCallId
         self.name = name
         self.images = images
+        self.videos = videos
         self.attachments = attachments
         self.createdAt = createdAt
     }
 
     /// The content actually sent to the model: the message text plus every
-    /// attachment's extracted text in clearly-delimited blocks. Encoders on
-    /// every protocol path (OpenAI-compatible, custom, Bedrock) use this
-    /// for user messages so attached files reach the model everywhere.
+    /// attachment's extracted text and any attached video workspace paths
+    /// in clearly-delimited blocks.
     public var wireContent: String {
-        guard let attachments = attachments, !attachments.isEmpty else {
+        let hasAttachments = !(attachments ?? []).isEmpty
+        let hasVideos = !(videos ?? []).isEmpty
+        guard hasAttachments || hasVideos else {
             return content
         }
-        var blocks = [content]
-        if content.isEmpty {
-            blocks = []
+        var blocks: [String] = []
+        if !content.isEmpty {
+            blocks.append(content)
         }
-        for attachment in attachments where !attachment.text.isEmpty {
-            blocks.append(
-                "[Attached file: \(attachment.name)]\n\(attachment.text)")
+        if let videos {
+            for video in videos {
+                var meta = "[Attached video saved in workspace: \(video.workspacePath) (file: \(video.fileName))"
+                if let dur = video.durationSeconds, dur > 0 {
+                    meta += String(format: ", duration: %.1fs", dur)
+                }
+                if let size = video.fileSize, size > 0 {
+                    let sizeStr = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+                    meta += ", size: \(sizeStr)"
+                }
+                meta += "]"
+                blocks.append(meta)
+            }
+        }
+        if let attachments {
+            for attachment in attachments where !attachment.text.isEmpty {
+                blocks.append(
+                    "[Attached file: \(attachment.name)]\n\(attachment.text)")
+            }
         }
         return blocks.joined(separator: "\n\n")
     }
@@ -254,12 +308,14 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
     public static func user(
         _ text: String,
         images: [MessageImage]? = nil,
+        videos: [MessageVideo]? = nil,
         attachments: [MessageAttachment]? = nil
     ) -> ChatMessage {
         ChatMessage(
             role: .user,
             content: text,
             images: images,
+            videos: videos,
             attachments: attachments)
     }
     public static func assistant(_ text: String) -> ChatMessage {
@@ -273,11 +329,10 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
         lhs.id == rhs.id
     }
 
-    // MARK: Codable (manual: keeps decoding snapshots written by V1,
-    // which had no `images` key, lossless)
+    // MARK: Codable (manual: keeps decoding snapshots written by earlier versions lossless)
 
     private enum CodingKeys: String, CodingKey {
-        case id, role, content, toolCalls, toolCallId, name, images, attachments, createdAt
+        case id, role, content, toolCalls, toolCallId, name, images, videos, attachments, createdAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -289,6 +344,7 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
         toolCallId = try container.decodeIfPresent(String.self, forKey: .toolCallId)
         name = try container.decodeIfPresent(String.self, forKey: .name)
         images = try container.decodeIfPresent([MessageImage].self, forKey: .images)
+        videos = try container.decodeIfPresent([MessageVideo].self, forKey: .videos)
         attachments = try container.decodeIfPresent([MessageAttachment].self, forKey: .attachments)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
@@ -302,6 +358,7 @@ public struct ChatMessage: Codable, Equatable, Identifiable {
         try container.encodeIfPresent(toolCallId, forKey: .toolCallId)
         try container.encodeIfPresent(name, forKey: .name)
         try container.encodeIfPresent(images, forKey: .images)
+        try container.encodeIfPresent(videos, forKey: .videos)
         try container.encodeIfPresent(attachments, forKey: .attachments)
         try container.encode(createdAt, forKey: .createdAt)
     }
@@ -362,9 +419,9 @@ public final class ToolContext {
     public let system: SystemServicing?
     public let session: SessionInfo
     public let isSubAgent: Bool
-    /// V4.6.0: the id of the tool call this context was built for. Set by
+    /// The id of the tool call this context was built for. Set by
     /// `ToolRegistry.execute` so tools that produce deliverables (like
-    /// `browser_screenshot`) can register them against the exact call.
+    /// `browser_screenshot` and `send_video`) can register them against the exact call.
     public var callID: String?
 
     public init(
@@ -619,10 +676,6 @@ public struct ModelInfo: Codable, Equatable, Identifiable, Hashable {
     public var name: String?
     public var ownedBy: String?
     public var contextLength: Int?
-    /// V4.0: whether the provider advertises native tool/function calling
-    /// for this model (OpenRouter exposes it as `supported_parameters`
-    /// containing "tools"). Models without it still work as agents through
-    /// the universal text tool protocol — this flag only drives UI hints.
     public var supportsTools: Bool?
 
     public init(id: String, name: String? = nil, ownedBy: String? = nil, contextLength: Int? = nil, supportsTools: Bool? = nil) {
@@ -690,7 +743,6 @@ public struct ExecutionPlan: Codable, Equatable {
 public enum SessionPhase: String, Codable {
     case idle
     case planning
-    /// V2: the model is composing a direct chat reply.
     case responding
     case executing
     case merging
@@ -776,8 +828,6 @@ public protocol BrowserControlling: AnyObject {
     func listElements() async throws -> [PageElement]
     func currentPageSummary() async throws -> String
     func goBack() async throws -> String
-    /// V4.6.0: captures the page the browser is currently on as PNG
-    /// data (the agent's screenshot permission).
     func captureScreenshot() async throws -> Data
 }
 
@@ -790,6 +840,7 @@ public enum FileKind: String, Codable {
     case pdf
     case spreadsheet
     case image
+    case video
     case archive
     case web
     case other
@@ -802,6 +853,7 @@ public enum FileKind: String, Codable {
         case "pdf": self = .pdf
         case "csv", "tsv": self = .spreadsheet
         case "png", "jpg", "jpeg", "gif", "webp", "heic": self = .image
+        case "mp4", "mov", "m4v", "webm", "mkv", "avi", "mpeg", "mpg", "3gp": self = .video
         case "zip": self = .archive
         case "html", "htm": self = .web
         case "swift", "py", "js", "ts", "tsx", "jsx", "json", "sh", "bash", "css",
@@ -847,22 +899,17 @@ public protocol WorkspaceRouting: AnyObject {
     func write(path: String, content: String) throws -> URL
     @discardableResult
     func writeData(path: String, data: Data) throws -> URL
-    /// Creates a folder (with intermediate parents) inside the workspace (V4.5.2).
     @discardableResult
     func createFolder(path: String) throws -> URL
     func read(path: String) throws -> String
     func list() -> [WorkspaceFile]
     func delete(path: String) throws
     func zip(paths: [String], archiveName: String) throws -> URL
-    /// Absolute URL for a relative workspace path (nil when missing).
     func url(for path: String) -> URL?
 }
 
 // MARK: - System Services Bridge
 
-/// System-level side effects available to the agent
-/// (notifications, Live Activity, calendar, reminders).
-/// Implemented by `PlatformServices` (Platform module).
 @MainActor
 public protocol SystemServicing: AnyObject {
     func notifyUser(title: String, body: String)

@@ -1,18 +1,19 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Markdown document view (V5.0.0 — iOS 27 Liquid Glass Editorial Markdown)
+// MARK: - Markdown document view
 
 /// Renders a full markdown document as native SwiftUI views inside the
-/// V5 Liquid Glass design language.
+/// Liquid Glass design language.
 ///
-/// V5.0.0 Upgrades:
+/// Key capabilities:
 /// - **Natural AttributedString paragraphs**: Inline links, bold, italic,
-///   strikethrough, inline code chips, and math now flow inside a single
+///   strikethrough, inline code chips, and math flow inside a single
 ///   native `Text(AttributedString)` whenever no block image is present —
 ///   fixing word-splitting, RTL Arabic shaping, and baseline alignment.
-/// - **Adaptive Light & Dark Mode surfaces**: Tables, blockquotes, callouts,
-///   and inline code chips adapt cleanly in both light and dark mode.
+/// - **Non-truncating tables**: Columns compute explicit proportional widths
+///   and every cell expands vertically (`fixedSize(horizontal: false, vertical: true)`,
+///   `lineLimit(nil)`) so cell text never clips or truncates with `"..."`.
 /// - **Rich Table Cell Inlines & Copy**: Table cells parse inline markdown
 ///   (`**bold**`, `` `code` ``, `[links](url)`) and tables include a one-tap
 ///   copy button.
@@ -245,7 +246,7 @@ struct MarkdownBlockView: View {
     }
 }
 
-// MARK: - Table (V5 Liquid Glass Table with Inline Formatting & Copy)
+// MARK: - Table (Non-Truncating Full-Wrap Table with Inline Formatting & Copy)
 
 private struct MarkdownTableView: View {
     let header: [String]
@@ -253,7 +254,35 @@ private struct MarkdownTableView: View {
 
     @State private var copied = false
 
+    /// Computes a consistent, proportional width for each column so that:
+    /// 1. Header and body cells in the same column always align vertically.
+    /// 2. Inside `ScrollView(.horizontal)`, SwiftUI proposes a concrete finite
+    ///    width (`colWidth`) to every cell instead of `nil` — preventing the
+    ///    classic single-line height measurement + maxWidth clamp bug that
+    ///    truncates the end of cell text with `"..."`.
+    private var columnWidths: [CGFloat] {
+        guard !header.isEmpty else { return [] }
+        let maxAllowed: CGFloat = header.count <= 2 ? 320 : (header.count == 3 ? 280 : 250)
+        return header.indices.map { col in
+            var longest = Self.visibleLength(header[col])
+            for row in rows where row.indices.contains(col) {
+                longest = max(longest, Self.visibleLength(row[col]))
+            }
+            let estimated = CGFloat(longest) * 8.2 + 28
+            return min(max(estimated, 114), maxAllowed)
+        }
+    }
+
+    private static func visibleLength(_ raw: String) -> Int {
+        let stripped = raw
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "__", with: "")
+            .replacingOccurrences(of: "`", with: "")
+        return max(stripped.count, 4)
+    }
+
     var body: some View {
+        let widths = columnWidths
         VStack(alignment: .leading, spacing: 0) {
             // Top bar with table label + copy action
             HStack {
@@ -287,7 +316,7 @@ private struct MarkdownTableView: View {
             Divider().overlay(AstralTheme.separator)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                tableGrid
+                tableGrid(widths: widths)
             }
         }
         .background(
@@ -299,25 +328,35 @@ private struct MarkdownTableView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
-    private var tableGrid: some View {
+    private func tableGrid(widths: [CGFloat]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
-                    headerCell(cell)
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(Array(header.enumerated()), id: \.offset) { colIndex, cell in
+                    let colWidth = widths.indices.contains(colIndex) ? widths[colIndex] : 160
+                    headerCell(cell, width: colWidth)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
             .background(AstralTheme.surfaceSecondary.opacity(0.55))
 
             Divider().overlay(AstralTheme.separator)
 
             ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
-                HStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(header.indices), id: \.self) { column in
+                        let colWidth = widths.indices.contains(column) ? widths[column] : 160
                         bodyCell(
                             row.indices.contains(column) ? row[column] : "",
-                            rowIndex: rowIndex)
+                            rowIndex: rowIndex,
+                            width: colWidth)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
+                .background(
+                    rowIndex % 2 == 1
+                        ? AstralTheme.surfaceSecondary.opacity(0.28)
+                        : Color.clear)
+
                 if rowIndex < rows.count - 1 {
                     Divider().overlay(AstralTheme.separator.opacity(0.5))
                 }
@@ -325,30 +364,30 @@ private struct MarkdownTableView: View {
         }
     }
 
-    private func headerCell(_ cell: String) -> some View {
+    private func headerCell(_ cell: String, width: CGFloat) -> some View {
         let inlines = MarkdownParser.parseInlines(cell)
         return InlineFlowView(
             inlines: inlines,
             font: AstralTheme.headline(12.5),
             color: AstralTheme.textPrimary)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
-            .frame(minWidth: 108, maxWidth: 240, alignment: .leading)
+            .frame(width: width, alignment: .topLeading)
     }
 
-    private func bodyCell(_ cell: String, rowIndex: Int) -> some View {
+    private func bodyCell(_ cell: String, rowIndex: Int, width: CGFloat) -> some View {
         let inlines = MarkdownParser.parseInlines(cell)
         return InlineFlowView(
             inlines: inlines,
             font: AstralTheme.body(12.5),
             color: AstralTheme.textPrimary)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 8.5)
-            .frame(minWidth: 108, maxWidth: 240, alignment: .leading)
-            .background(
-                rowIndex % 2 == 1
-                    ? AstralTheme.surfaceSecondary.opacity(0.28)
-                    : Color.clear)
+            .frame(width: width, alignment: .topLeading)
     }
 
     private func copyTableAsMarkdown() {
@@ -367,7 +406,7 @@ private struct MarkdownTableView: View {
     }
 }
 
-// MARK: - Inline flow (V5 Unified AttributedString + Image Segments)
+// MARK: - Inline flow (Unified AttributedString + Image Segments)
 
 private enum InlineSegment {
     case text(AttributedString)
@@ -377,11 +416,11 @@ private enum InlineSegment {
 
 /// Renders a sequence of markdown inlines.
 ///
-/// V5 improvement: When a paragraph or list item contains no inline images,
+/// When a paragraph, list item, or table cell contains no inline images,
 /// the entire inline sequence (including clickable links, inline code,
 /// bold/italic, and math) is rendered as a single unified `Text(AttributedString)`
-/// with proper line spacing — ensuring flawless word wrapping and Arabic/English
-/// bidirectional layout!
+/// with `.lineLimit(nil)` and `.fixedSize(horizontal: false, vertical: true)`
+/// so text wraps cleanly across multiple lines without ever truncating with `"..."`.
 struct InlineFlowView: View {
     let inlines: [MarkdownInline]
     let font: Font
@@ -406,6 +445,8 @@ struct InlineFlowView: View {
         if !hasImages {
             Text(Self.unifiedAttributedString(from: inlines, font: font, color: color))
                 .lineSpacing(4)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
         } else {
@@ -533,6 +574,8 @@ struct InlineFlowView: View {
         switch segment {
         case .text(let attributed):
             Text(attributed)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         case .link(let text, let url):
             Button {
@@ -544,6 +587,8 @@ struct InlineFlowView: View {
                     .font(font)
                     .underline()
                     .foregroundStyle(AstralTheme.auroraCyan)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(verbatim: url))
