@@ -154,7 +154,7 @@ struct LinuxDesktopView: View {
 
             Spacer()
 
-            Text(alpha.kernelRelease)
+            Text(AlphaLinuxSubsystem.kernelRelease)
                 .font(AstralTheme.mono(10))
                 .foregroundStyle(AstralTheme.textSecondary)
 
@@ -269,7 +269,7 @@ struct LinuxDesktopView: View {
                 Text("root@astra-os:~# uname -a")
                     .font(AstralTheme.mono(11))
                     .foregroundStyle(AstralTheme.textSecondary)
-                Text("Linux astra-os \(alpha.kernelRelease) \(alpha.kernelVersionString) alpha EV68CB (21264C) / aarch64 GNU/Linux")
+                Text("Linux astra-os \(AlphaLinuxSubsystem.kernelRelease) \(AlphaLinuxSubsystem.kernelVersionString) alpha EV68CB (21264C) / aarch64 GNU/Linux")
                     .font(AstralTheme.mono(11))
                     .foregroundStyle(AstralTheme.orbGreen)
                     .textSelection(.enabled)
@@ -396,8 +396,8 @@ struct LinuxDesktopView: View {
     private var systemClient: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                statRow("Kernel", "\(alpha.kernelRelease) \(alpha.kernelVersionString)")
-                statRow("SRM firmware", alpha.srmFirmwareVersion)
+                statRow("Kernel", "\(AlphaLinuxSubsystem.kernelRelease) \(AlphaLinuxSubsystem.kernelVersionString)")
+                statRow("SRM firmware", AlphaLinuxSubsystem.srmFirmwareVersion)
                 statRow("Boot image", alpha.activeKernelImage)
                 statRow("ISO", AlphaLinuxSubsystem.isoFileName)
                 statRow("Status", alpha.isoProbeStatus)
@@ -504,7 +504,7 @@ struct LinuxDesktopView: View {
             FHSEntry(path: "/sys", name: "sys", detail: "sysfs device tree", perms: "dr-xr-xr-x"),
             FHSEntry(path: "/usr", name: "usr", detail: "userland + alpha-unknown-linux-gnu toolchain", perms: "drwxr-xr-x"),
             FHSEntry(path: "/var", name: "var", detail: "db/pkg — the Portage database", perms: "drwxr-xr-x"),
-            FHSEntry(path: "/boot/gentoo", name: "gentoo", detail: "kernel image (\(alpha.kernelRelease))", perms: "-rw-r--r--"),
+            FHSEntry(path: "/boot/gentoo", name: "gentoo", detail: "kernel image (\(AlphaLinuxSubsystem.kernelRelease))", perms: "-rw-r--r--"),
             FHSEntry(path: "/boot/gentoo.igz", name: "gentoo.igz", detail: "initramfs (gzip cpio archive)", perms: "-rw-r--r--")
         ]
     }
