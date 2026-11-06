@@ -689,6 +689,7 @@ enum AstralIcons {
     static let file = "file-text"
     static let filePlus = "file-plus"
     static let fileCode = "file-code"
+    static let globe = "globe"
     static let folder = "folder"
     static let folderPlus = "folder-plus"
     static let folderOpen = "folder-open"
