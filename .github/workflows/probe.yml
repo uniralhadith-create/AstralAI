@@ -1,0 +1,14 @@
+name: runner-probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe-macos:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - name: Probe
+        run: |
+          sw_vers
+          echo "probe ok"
