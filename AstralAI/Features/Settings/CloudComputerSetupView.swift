@@ -1,20 +1,25 @@
 import SwiftUI
 
-// MARK: - Cloud computer setup
+// MARK: - Cloud & Local Linux Alpha Computer Setup
 
 /// The computer control room: switch the whole app between the on-device
-/// astra-os machine and the REAL Ubuntu cloud computer (E2B), enter an
-/// API key, and live-test the boot.
+/// astra-os Linux Alpha workstation (`install-alpha-minimal-20260426T153103Z.iso`,
+/// Kernel `6.18.52-gentoo-alpha`) and the REAL Ubuntu cloud computer (E2B),
+/// inspect/extract the Linux Alpha kernel & SquashFS rootfs, enter an API key,
+/// and live-test the boot.
 struct CloudComputerSetupView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject private var mode = ComputerModeController.shared
     @ObservedObject private var cloud = E2BComputer.shared
+    @ObservedObject private var alpha = AlphaLinuxSubsystem.shared
 
     @State private var keyText = ""
     @State private var testing = false
     @State private var testResult: String?
     @State private var testFailed = false
+    @State private var probingISO = false
+    @State private var alphaActionMessage: String?
 
     private var trimmedKey: String {
         keyText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,6 +29,7 @@ struct CloudComputerSetupView: View {
         ScrollView {
             VStack(spacing: AstralTheme.Spacings.m) {
                 computerModeSection
+                alphaLinuxKernelSection
                 apiKeySection
                 testSection
             }
@@ -76,7 +82,7 @@ struct CloudComputerSetupView: View {
             HStack(spacing: 10) {
                 modeCard(
                     title: L("settings.modeLocal", "Settings"),
-                    caption: "astra-os · iPhone",
+                    caption: "astra-os · Linux Alpha",
                     icon: AstralIcons.cpu,
                     selected: mode.mode == .local) {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -101,6 +107,142 @@ struct CloudComputerSetupView: View {
         }
         .padding(AstralTheme.Spacings.m)
         .glassCard(cornerRadius: 22, depth: .panel)
+    }
+
+    // MARK: Linux Alpha Kernel & ISO-9660 RootFS Control Card
+
+    private var alphaLinuxKernelSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                AIcon(
+                    AstralIcons.terminal,
+                    size: 16,
+                    strokeWidth: 2.1,
+                    color: AstralTheme.orbGreen)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Linux Alpha Kernel & SquashFS RootFS")
+                        .font(AstralTheme.headline(14.5))
+                        .foregroundStyle(AstralTheme.textPrimary)
+                    Text("\(AlphaLinuxSubsystem.isoFileName) · 252.7 MiB")
+                        .font(AstralTheme.mono(10.5))
+                        .foregroundStyle(AstralTheme.textSecondary)
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                kernelDetailRow(label: "Kernel", value: "\(AlphaLinuxSubsystem.kernelRelease) (\(alpha.activeKernelImage))")
+                kernelDetailRow(label: "Bootloader", value: "SRM \(AlphaLinuxSubsystem.srmFirmwareVersion) · aboot \(AlphaLinuxSubsystem.abootVersion)")
+                kernelDetailRow(label: "RootFS", value: "/mnt/cdrom/image.squashfs (OverlayFS /)")
+                kernelDetailRow(label: "Drive ID", value: AlphaLinuxSubsystem.driveFileID)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AstralTheme.actionFill.opacity(0.04)))
+
+            // SRM aboot kernel slot switcher
+            HStack(spacing: 8) {
+                Button {
+                    _ = AlphaLinuxSubsystem.shared.runAboot(["boot", "0"])
+                    alphaActionMessage = "Switched to Slot 0: /boot/gentoo (LSA EV56+ SMP)"
+                } label: {
+                    Text("Slot 0: gentoo (LSA)")
+                        .font(AstralTheme.mono(10.5).weight(.semibold))
+                        .foregroundStyle(alpha.activeBootSlot < 3 ? AstralTheme.textPrimary : AstralTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .liquidGlass(
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous),
+                            tint: alpha.activeBootSlot < 3 ? AstralTheme.orbGreen.opacity(0.16) : .clear,
+                            interactive: true)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    _ = AlphaLinuxSubsystem.shared.runAboot(["boot", "3"])
+                    alphaActionMessage = "Switched to Slot 3: /boot/gentoo_nolsa (Marvel/Titan)"
+                } label: {
+                    Text("Slot 3: gentoo_nolsa")
+                        .font(AstralTheme.mono(10.5).weight(.semibold))
+                        .foregroundStyle(alpha.activeBootSlot >= 3 ? AstralTheme.textPrimary : AstralTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .liquidGlass(
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous),
+                            tint: alpha.activeBootSlot >= 3 ? AstralTheme.orbGreen.opacity(0.16) : .clear,
+                            interactive: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    Task {
+                        probingISO = true
+                        defer { probingISO = false }
+                        let res = await SandboxShell.shared.run("alpha-iso probe-drive")
+                        alphaActionMessage = res.stdout.components(separatedBy: .newlines).first ?? "Verified Linux Alpha ISO"
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if probingISO {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            AIcon(AstralIcons.checkCircle, size: 13, strokeWidth: 2.1, color: AstralTheme.orbGreen)
+                        }
+                        Text("Verify Drive ISO")
+                            .font(AstralTheme.headline(12))
+                            .foregroundStyle(AstralTheme.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .liquidGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous), interactive: true)
+                }
+                .buttonStyle(.plain)
+                .disabled(probingISO)
+
+                Button {
+                    Task {
+                        let res = await SandboxShell.shared.run("alpha-iso extract-kernel")
+                        alphaActionMessage = res.stdout.components(separatedBy: .newlines).first ?? "Extracted kernel to Workspace"
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        AIcon(AstralIcons.fileCode, size: 13, strokeWidth: 2.1, color: AstralTheme.textPrimary)
+                        Text("Extract Kernel")
+                            .font(AstralTheme.headline(12))
+                            .foregroundStyle(AstralTheme.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .liquidGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous), interactive: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let alphaActionMessage {
+                Text(alphaActionMessage)
+                    .font(AstralTheme.mono(10.5))
+                    .foregroundStyle(AstralTheme.orbGreen)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(AstralTheme.Spacings.m)
+        .glassCard(cornerRadius: 22, depth: .panel)
+    }
+
+    private func kernelDetailRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(AstralTheme.mono(10.5).weight(.semibold))
+                .foregroundStyle(AstralTheme.moonDust)
+                .frame(width: 76, alignment: .leading)
+            Text(value)
+                .font(AstralTheme.mono(10.5))
+                .foregroundStyle(AstralTheme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func modeCard(

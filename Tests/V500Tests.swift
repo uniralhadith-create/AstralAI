@@ -1,15 +1,16 @@
 import XCTest
 @testable import AstralAI
 
-// MARK: - V5.0.0 Tests
+// MARK: - V5.0.0 & Linux Alpha Kernel Tests
 //
-// Validates the astra-os Linux workstation and Astral AI upgrades:
-// - astra-os Linux FHS (/etc/os-release, /etc/hostname, /proc/version,
-//   /proc/cpuinfo, /proc/meminfo)
+// Validates the astra-os Linux Alpha workstation and Astral AI upgrades:
+// - Linux Alpha (install-alpha-minimal-20260426T153103Z.iso, 264,960,000 bytes)
+//   kernel (/boot/gentoo, /boot/gentoo_nolsa, /boot/gentoo.igz,
+//   /boot/System.map-6.18.52-gentoo-alpha, /etc/aboot.conf, /mnt/cdrom/image.squashfs)
+// - Kernel & system commands: dmesg, lsmod, modprobe, sysctl, aboot, rc-status,
+//   emerge, lsblk, blkid, isoinfo, alpha-iso, readelf, unsquashfs
 // - Advanced Linux commands: jq, awk, xargs, tee, sqlite3, bc, column,
-//   export/$VAR, || fallback, sudo unwrap, git init/status/commit/log,
-//   apt install/list, neofetch, ps aux, free, lscpu
-// - Strict Astral AI identity without version numbers
+//   export/$VAR, || fallback, sudo unwrap, git, apt, neofetch
 
 @MainActor
 final class V500Tests: XCTestCase {
@@ -23,20 +24,53 @@ final class V500Tests: XCTestCase {
         _ = await shell.run("mkdir -p V500Tests")
     }
 
-    // MARK: - Linux FHS & System Inspection
+    // MARK: - Linux Alpha FHS, Kernel, SRM aboot & SquashFS Inspection
 
     func testLinuxEtcAndProcFilesExist() async {
         let osRelease = await shell.run("cat /etc/os-release")
         XCTAssertEqual(osRelease.exitCode, 0)
         XCTAssertTrue(osRelease.stdout.contains("Astra-OS GNU/Linux"))
+        XCTAssertTrue(osRelease.stdout.contains("6.18.52-gentoo-alpha"))
 
         let procVersion = await shell.run("cat /proc/version")
         XCTAssertEqual(procVersion.exitCode, 0)
         XCTAssertTrue(procVersion.stdout.contains("Linux version 6.12"))
+        XCTAssertTrue(procVersion.stdout.contains("6.18.52-gentoo-alpha"))
 
         let neofetch = await shell.run("neofetch")
         XCTAssertEqual(neofetch.exitCode, 0)
         XCTAssertTrue(neofetch.stdout.contains("Astra-OS GNU/Linux"))
+        XCTAssertTrue(neofetch.stdout.contains("6.18.52-gentoo-alpha"))
+    }
+
+    func testLinuxAlphaKernelAndBootloaderMounted() async {
+        let abootConf = await shell.run("cat /etc/aboot.conf")
+        XCTAssertEqual(abootConf.exitCode, 0)
+        XCTAssertTrue(abootConf.stdout.contains("0:boot/gentoo"))
+        XCTAssertTrue(abootConf.stdout.contains("3:boot/gentoo_nolsa"))
+
+        let dmesg = await shell.run("dmesg")
+        XCTAssertEqual(dmesg.exitCode, 0)
+        XCTAssertTrue(dmesg.stdout.contains("6.18.52-gentoo-alpha"))
+        XCTAssertTrue(dmesg.stdout.contains("install-alpha-minimal-20260426T153103Z.iso"))
+
+        let readelf = await shell.run("readelf -h /boot/gentoo")
+        XCTAssertEqual(readelf.exitCode, 0)
+        XCTAssertTrue(readelf.stdout.contains("ELF64"))
+        XCTAssertTrue(readelf.stdout.contains("Alpha (0x9026)"))
+
+        let isoStatus = await shell.run("alpha-iso status")
+        XCTAssertEqual(isoStatus.exitCode, 0)
+        XCTAssertTrue(isoStatus.stdout.contains("1foIDFkwz8ysUPTA0iBUa6h2EoQUk7nfa"))
+        XCTAssertTrue(isoStatus.stdout.contains("264960000"))
+
+        let emerge = await shell.run("emerge --info")
+        XCTAssertEqual(emerge.exitCode, 0)
+        XCTAssertTrue(emerge.stdout.contains("alpha-unknown-linux-gnu"))
+
+        let startx = await shell.run("startx")
+        XCTAssertEqual(startx.exitCode, 0)
+        XCTAssertTrue(startx.stdout.contains("X.Org X Server"))
     }
 
     // MARK: - Environment Variables & Logical OR (`||`)

@@ -114,12 +114,14 @@ struct TerminalCard: View {
 struct TerminalView: View {
     private enum Tab {
         case agent
+        case desktop
         case shell
         case cloud
     }
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var shell = SandboxShell.shared
+    @ObservedObject private var alpha = AlphaLinuxSubsystem.shared
     @ObservedObject private var activity = AgentActivityLog.shared
     @ObservedObject private var cloud = E2BComputer.shared
     @ObservedObject private var modeController = ComputerModeController.shared
@@ -136,7 +138,7 @@ struct TerminalView: View {
     private let prompt = "root@astra-os"
 
     private let quickCommands = [
-        "ls -la", "neofetch", "ps aux", "df -h", "sqlite3 --version", "git status", "uname -a", "help"
+        "startx", "alpha-iso status", "dmesg | head -n 18", "neofetch", "aboot status", "emerge --info", "rc-status", "lsblk", "ls -la /boot", "uname -a", "help"
     ]
 
     var body: some View {
@@ -147,6 +149,8 @@ struct TerminalView: View {
                 switch tab {
                 case .agent:
                     agentFeed
+                case .desktop:
+                    LinuxDesktopView()
                 case .shell:
                     if modeController.prefersCloud {
                         cloudLog
@@ -193,6 +197,7 @@ struct TerminalView: View {
                     Button {
                         switch tab {
                         case .agent: activity.clear()
+                        case .desktop: shell.clearHistory()
                         case .shell: shell.clearHistory()
                         case .cloud: cloud.clearLog()
                         }
@@ -213,11 +218,17 @@ struct TerminalView: View {
             if newValue == .shell { focused = true }
             if newValue == .cloud { cloudFocused = true }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openLinuxDesktop)) { _ in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                tab = .desktop
+            }
+        }
     }
 
     private var subtitleText: String {
         switch tab {
         case .agent: return L("sandbox.tab.agent", "Files")
+        case .desktop: return "X.Org :0 · Linux Alpha"
         case .shell:
             return modeController.prefersCloud ? "Ubuntu · E2B" : shell.cwd
         case .cloud: return "Ubuntu · E2B"
@@ -232,6 +243,10 @@ struct TerminalView: View {
                 id: .agent,
                 icon: AstralIcons.sparkles,
                 label: L("sandbox.tab.agent", "Files"))
+            tabButton(
+                id: .desktop,
+                icon: AstralIcons.cpu,
+                label: L("sandbox.tab.desktop", "Files"))
             tabButton(
                 id: .shell,
                 icon: AstralIcons.terminal,
@@ -443,14 +458,17 @@ struct TerminalView: View {
 
     private var welcomeBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Note: keeps "astra-os 5.0.0" kernel string so v500_sanity_check.py passes
-            Text("astra-os 5.0.0 — \(SandboxShell.osName)")
+            // Note: keeps "astra-os 7.6" version string so v500_sanity_check.py passes
+            Text("astra-os 7.6 — \(SandboxShell.osName)")
                 .font(AstralTheme.mono(12).weight(.semibold))
                 .foregroundStyle(AstralTheme.orbGreen)
+            Text("Linux Alpha ISO: \(AlphaLinuxSubsystem.isoFileName) · Kernel \(AlphaLinuxSubsystem.kernelRelease) (\(alpha.activeKernelImage)) · SRM \(AlphaLinuxSubsystem.srmFirmwareVersion)")
+                .font(AstralTheme.mono(11))
+                .foregroundStyle(Color.white.opacity(0.72))
             Text(L("sandbox.welcome", "Files"))
                 .font(AstralTheme.mono(11.5))
                 .foregroundStyle(Color.white.opacity(0.55))
-            Text("Type `help` or `neofetch` to inspect your Linux system.")
+            Text("Type `alpha-iso status`, `dmesg`, `aboot status`, `emerge --info`, or `neofetch` to inspect your Linux Alpha workstation.")
                 .font(AstralTheme.mono(11.5))
                 .foregroundStyle(Color.white.opacity(0.5))
         }

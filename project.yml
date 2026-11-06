@@ -37,8 +37,8 @@ targets:
       path: AstralAI/Resources/Info.plist
       properties:
         CFBundleDisplayName: Astral AI
-        CFBundleShortVersionString: "5.0.0"
-        CFBundleVersion: "13"
+        CFBundleShortVersionString: "7.6"
+        CFBundleVersion: "14"
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:
@@ -92,8 +92,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uniral.astralai
-        MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "13"
+        MARKETING_VERSION: "7.6"
+        CURRENT_PROJECT_VERSION: "14"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SUPPORTS_MACCATALYST: "NO"
@@ -118,8 +118,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uniral.astralai.widgets
-        MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "13"
+        MARKETING_VERSION: "7.6"
+        CURRENT_PROJECT_VERSION: "14"
         SKIP_INSTALL: "YES"
 
   ShareExtension:
@@ -147,8 +147,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.uniral.astralai.share
-        MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "13"
+        MARKETING_VERSION: "7.6"
+        CURRENT_PROJECT_VERSION: "14"
         SKIP_INSTALL: "YES"
 
   AstralAITests:

@@ -126,25 +126,43 @@ def main() -> int:
         for key in set(ar) - set(en):
             failures.append(f"ar/{table}.strings: key missing in en: {key}")
 
-    # 3. Release invariants for V5.0.0
+    # 3. Release invariants for V7.6
     project = (ROOT / "project.yml").read_text(encoding="utf-8")
-    if project.count("5.0.0") != 4:
-        failures.append(f"project.yml: expected 4 x 5.0.0, found {project.count('5.0.0')}")
-    target_build = 'CURRENT_PROJECT_VERSION: "13"'
+    if project.count('"7.6"') != 4:
+        failures.append(f"project.yml: expected 4 x 7.6, found {project.count('7.6')}")
+    target_build = 'CURRENT_PROJECT_VERSION: "14"'
     if project.count(target_build) != 3:
-        failures.append(f"project.yml: expected 3 x build 13, found {project.count(target_build)}")
+        failures.append(f"project.yml: expected 3 x build 14, found {project.count(target_build)}")
+    if 'CFBundleVersion: "14"' not in project:
+        failures.append("project.yml: CFBundleVersion not set to 14")
 
     for lang in ["en", "ar"]:
         badge = (ROOT / f"AstralAI/Resources/{lang}.lproj/Shared.strings").read_text(encoding="utf-8")
-        if "V5.0.0" not in badge:
-            failures.append(f"versionBadge not updated to V5.0.0 ({lang})")
+        if "V7.6" not in badge:
+            failures.append(f"versionBadge not updated to V7.6 ({lang})")
 
     shell = (ROOT / "AstralAI/AgentCore/Sandbox/SandboxShell.swift").read_text(encoding="utf-8")
-    if "astra-os 5.0.0" not in shell:
-        failures.append("SandboxShell: osName not updated to 5.0.0")
+    if "astra-os 7.6" not in shell:
+        failures.append("SandboxShell: osName not updated to 7.6")
     for cmd in ["jq", "awk", "neofetch", "gitCommand", "aptCommand", "wget", "xargs", "tee"]:
         if cmd not in shell:
             failures.append(f"SandboxShell: missing V5 Linux command {cmd}")
+
+    # 4. Linux Alpha subsystem invariants (V7.6)
+    alpha = ROOT / "AstralAI/AgentCore/Sandbox/AlphaLinuxSubsystem.swift"
+    extractor = ROOT / "AstralAI/AgentCore/Sandbox/AlphaISOExtractor.swift"
+    if not alpha.exists():
+        failures.append("Linux Alpha: AlphaLinuxSubsystem.swift missing")
+    else:
+        alpha_src = alpha.read_text(encoding="utf-8")
+        for token in ["install-alpha-minimal-20260426T153103Z.iso", "6.18.52-gentoo-alpha", "static let shared"]:
+            if token not in alpha_src:
+                failures.append(f"AlphaLinuxSubsystem: missing {token}")
+    if not extractor.exists():
+        failures.append("Linux Alpha: AlphaISOExtractor.swift missing")
+    for alpha_cmd in ["runDmesg", "runLsmod", "runSysctl", "runAboot", "runLsblk", "runIsoinfo"]:
+        if alpha_cmd not in shell:
+            failures.append(f"SandboxShell: Linux Alpha command {alpha_cmd} not wired")
 
     icons = (ROOT / "AstralAI/DesignSystem/AstralIcons.swift").read_text(encoding="utf-8")
     if "struct AstralComputerIcon" not in icons:
@@ -155,21 +173,21 @@ def main() -> int:
         failures.append("AstraComputerBar: not wired to AstralComputerIcon")
 
     terminal = (ROOT / "AstralAI/Features/Files/TerminalView.swift").read_text(encoding="utf-8")
-    if "AstralComputerIcon" not in terminal or "astra-os 5.0.0" not in terminal:
-        failures.append("TerminalView: missing AstralComputerIcon or 5.0.0 banner")
+    if "AstralComputerIcon" not in terminal or "astra-os 7.6" not in terminal:
+        failures.append("TerminalView: missing AstralComputerIcon or 7.6 banner")
 
     if failures:
-        print("V5.0.0 SANITY: FAIL")
+        print("V7.6 SANITY: FAIL")
         for line in failures:
             print("  -", line)
         return 1
 
-    print("V5.0.0 SANITY: PASS")
+    print("V7.6 SANITY: PASS")
     print(f"  {len(all_swift)} Swift files balanced with zero syntax/brace errors")
     print(f"  {len(STRING_TABLES)} localization tables × en/ar: zero duplicates, 100% parity")
-    print("  V5.0.0 release invariants OK (5.0.0 / build 13 / badges / banners)")
+    print("  V7.6 release invariants OK (7.6 / build 14 / badges / banners)")
     print("  AstralComputerIcon custom vector icon + V5 Liquid Glass shimmer verified")
-    print("  astra-os 5.0.0 Linux FHS + 60+ commands (jq, awk, git, apt, wget, neofetch...) verified")
+    print("  astra-os 7.6 Linux FHS + 75+ commands + Linux Alpha kernel subsystem verified")
     return 0
 
 

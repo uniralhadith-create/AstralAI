@@ -32,6 +32,7 @@
 
 "sandbox.tab.agent" = "Agent";
 "sandbox.tab.shell" = "Shell";
+"sandbox.tab.desktop" = "Desktop";
 "sandbox.activity.title" = "Live agent activity";
 "sandbox.activity.empty" = "Everything the agent does appears here in real time — web searches, page reads, browser actions, shell commands, files and code — like a Claude Code console. Send it a task and watch it work.";
 "sandbox.computerIdle" = "The computer is idle";
