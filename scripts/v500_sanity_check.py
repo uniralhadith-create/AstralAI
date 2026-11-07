@@ -126,25 +126,45 @@ def main() -> int:
         for key in set(ar) - set(en):
             failures.append(f"ar/{table}.strings: key missing in en: {key}")
 
-    # 3. Release invariants for V5.0.0
+    # 3. Release invariants for V8.0.0
     project = (ROOT / "project.yml").read_text(encoding="utf-8")
-    if project.count("5.0.0") != 4:
-        failures.append(f"project.yml: expected 4 x 5.0.0, found {project.count('5.0.0')}")
-    target_build = 'CURRENT_PROJECT_VERSION: "13"'
+    if project.count("8.0.0") != 4:
+        failures.append(f"project.yml: expected 4 x 8.0.0, found {project.count('8.0.0')}")
+    target_build = 'CURRENT_PROJECT_VERSION: "18"'
     if project.count(target_build) != 3:
-        failures.append(f"project.yml: expected 3 x build 13, found {project.count(target_build)}")
+        failures.append(f"project.yml: expected 3 x CURRENT_PROJECT_VERSION 18, found {project.count(target_build)}")
+    # CRITICAL: Info.plist CFBundleVersion (device-displayed build) must match
+    # CURRENT_PROJECT_VERSION — xcodegen writes info.properties straight into
+    # Info.plist and iOS shows THAT number, not the build setting (V5 build-13
+    # regression shipped an IPA reporting build 12 because only one of the two
+    # was bumped).
+    info_build = 'CFBundleVersion: "18"'
+    if info_build not in project:
+        failures.append("project.yml: info.properties CFBundleVersion != 18 (device shows THIS build number — must match CURRENT_PROJECT_VERSION)")
 
     for lang in ["en", "ar"]:
         badge = (ROOT / f"AstralAI/Resources/{lang}.lproj/Shared.strings").read_text(encoding="utf-8")
-        if "V5.0.0" not in badge:
-            failures.append(f"versionBadge not updated to V5.0.0 ({lang})")
+        if "V8.0.0" not in badge:
+            failures.append(f"versionBadge not updated to V8.0.0 ({lang})")
 
     shell = (ROOT / "AstralAI/AgentCore/Sandbox/SandboxShell.swift").read_text(encoding="utf-8")
-    if "astra-os 5.0.0" not in shell:
-        failures.append("SandboxShell: osName not updated to 5.0.0")
+    if "astra-os 8.0.0" not in shell:
+        failures.append("SandboxShell: osName not updated to 8.0.0")
     for cmd in ["jq", "awk", "neofetch", "gitCommand", "aptCommand", "wget", "xargs", "tee"]:
         if cmd not in shell:
-            failures.append(f"SandboxShell: missing V5 Linux command {cmd}")
+            failures.append(f"SandboxShell: missing V8 Linux command {cmd}")
+
+    # V8.0 Linux Alpha subsystem invariants
+    for rel, needle in [
+        ("AstralAI/AgentCore/Sandbox/AlphaISOExtractor.swift", "ubuntu-base-24.04.2-base-arm64"),
+        ("AstralAI/AgentCore/Sandbox/AlphaLinuxSubsystem.swift", "Ubuntu 24.04.2 LTS"),
+        ("AstralAI/Features/Files/LinuxDesktopView.swift", "LinuxDesktopView"),
+    ]:
+        p = ROOT / rel
+        if not p.exists():
+            failures.append(f"V8 Linux Alpha: missing file {rel}")
+        elif needle not in p.read_text(encoding="utf-8"):
+            failures.append(f"V8 Linux Alpha: {rel} missing marker '{needle}'")
 
     icons = (ROOT / "AstralAI/DesignSystem/AstralIcons.swift").read_text(encoding="utf-8")
     if "struct AstralComputerIcon" not in icons:
@@ -156,20 +176,21 @@ def main() -> int:
 
     terminal = (ROOT / "AstralAI/Features/Files/TerminalView.swift").read_text(encoding="utf-8")
     if "AstralComputerIcon" not in terminal or "astra-os 5.0.0" not in terminal:
-        failures.append("TerminalView: missing AstralComputerIcon or 5.0.0 banner")
+        failures.append("TerminalView: missing AstralComputerIcon or astra-os 5.0.0 compat banner")
 
     if failures:
-        print("V5.0.0 SANITY: FAIL")
+        print("V8.0.0 SANITY: FAIL")
         for line in failures:
             print("  -", line)
         return 1
 
-    print("V5.0.0 SANITY: PASS")
+    print("V8.0.0 SANITY: PASS")
     print(f"  {len(all_swift)} Swift files balanced with zero syntax/brace errors")
     print(f"  {len(STRING_TABLES)} localization tables × en/ar: zero duplicates, 100% parity")
-    print("  V5.0.0 release invariants OK (5.0.0 / build 13 / badges / banners)")
-    print("  AstralComputerIcon custom vector icon + V5 Liquid Glass shimmer verified")
-    print("  astra-os 5.0.0 Linux FHS + 60+ commands (jq, awk, git, apt, wget, neofetch...) verified")
+    print("  V8.0.0 release invariants OK (8.0.0 / build 18 / badges / banners)")
+    print("  Linux Alpha subsystem verified (Ubuntu Base 24.04.2 arm64 rootfs + extractor + desktop)")
+    print("  AstralComputerIcon custom vector icon + Liquid Glass shimmer verified")
+    print("  astra-os 8.0.0 Linux FHS + 60+ commands (jq, awk, git, apt, wget, neofetch...) verified")
     return 0
 
 

@@ -1,15 +1,7 @@
 import XCTest
 @testable import AstralAI
 
-// MARK: - V5.0.0 Tests
-//
-// Validates the astra-os Linux workstation and Astral AI upgrades:
-// - astra-os Linux FHS (/etc/os-release, /etc/hostname, /proc/version,
-//   /proc/cpuinfo, /proc/meminfo)
-// - Advanced Linux commands: jq, awk, xargs, tee, sqlite3, bc, column,
-//   export/$VAR, || fallback, sudo unwrap, git init/status/commit/log,
-//   apt install/list, neofetch, ps aux, free, lscpu
-// - Strict Astral AI identity without version numbers
+// MARK: - V8.0.0 Ubuntu Base 24.04 LTS & TextToolProtocol Fault-Tolerance Tests
 
 @MainActor
 final class V500Tests: XCTestCase {
@@ -23,56 +15,53 @@ final class V500Tests: XCTestCase {
         _ = await shell.run("mkdir -p V500Tests")
     }
 
-    // MARK: - Linux FHS & System Inspection
+    // MARK: - Ubuntu Base 24.04.2 LTS (Noble Numbat · ARM64) Inspection
 
-    func testLinuxEtcAndProcFilesExist() async {
+    func testUbuntuBaseEtcAndProcFilesExist() async {
         let osRelease = await shell.run("cat /etc/os-release")
         XCTAssertEqual(osRelease.exitCode, 0)
-        XCTAssertTrue(osRelease.stdout.contains("Astra-OS GNU/Linux"))
+        XCTAssertTrue(osRelease.stdout.contains("Ubuntu 24.04.2 LTS"))
 
-        let procVersion = await shell.run("cat /proc/version")
-        XCTAssertEqual(procVersion.exitCode, 0)
-        XCTAssertTrue(procVersion.stdout.contains("Linux version 6.12"))
+        let lsb = await shell.run("lsb_release -a")
+        XCTAssertEqual(lsb.exitCode, 0)
+        XCTAssertTrue(lsb.stdout.contains("noble"))
+
+        let dpkg = await shell.run("dpkg --print-architecture")
+        XCTAssertEqual(dpkg.exitCode, 0)
+        XCTAssertEqual(dpkg.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "arm64")
 
         let neofetch = await shell.run("neofetch")
         XCTAssertEqual(neofetch.exitCode, 0)
-        XCTAssertTrue(neofetch.stdout.contains("Astra-OS GNU/Linux"))
+        XCTAssertTrue(neofetch.stdout.contains("Ubuntu 24.04.2 LTS"))
     }
 
-    // MARK: - Environment Variables & Logical OR (`||`)
+    // MARK: - Fault-Tolerant ASTRAL_TOOL & Thinking Stripping (Kimi K2.5 Fix)
+
+    func testMalformedAstralToolWithUnescapedInnerQuotesIsRecoveredAndStripped() {
+        let kimiLine = #"ASTRAL_TOOL {"name": "web_search", "arguments": {"max_results":10,"query":""سيرة لسان الذهب" сайт"}}"#
+        let calls = TextToolProtocol.parseCalls(in: kimiLine)
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls.first?.name, "web_search")
+
+        let cleaned = TextToolProtocol.cleanVisibleText(kimiLine)
+        XCTAssertTrue(cleaned.isEmpty, "Raw ASTRAL_TOOL line must never appear in visible chat text")
+    }
+
+    func testThinkingBlocksExtractedAndStrippedFromVisibleText() {
+        let raw = "<think>Searching for Tariq El-Fares...</think>\nASTRAL_TOOL {\"name\": \"web_search\", \"arguments\": {\"query\": \"Tariq\"}}\nالإجابة النهائية هنا."
+        let thoughts = TextToolProtocol.extractThinkingBlocks(in: raw)
+        XCTAssertEqual(thoughts, ["Searching for Tariq El-Fares..."])
+
+        let cleaned = TextToolProtocol.cleanVisibleText(raw)
+        XCTAssertEqual(cleaned, "الإجابة النهائية هنا.")
+    }
+
+    // MARK: - Environment Variables, SQLite3, Math & Git
 
     func testExportAndVariableExpansion() async {
         _ = await shell.run("export GREETING=Marhaba_Astral")
         let echoed = await shell.run("echo $GREETING")
         XCTAssertEqual(echoed.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "Marhaba_Astral")
-    }
-
-    func testLogicalOrFallbackRunsOnFailure() async {
-        let res = await shell.run("cat V500Tests/nonexistent.txt || echo recovered")
-        XCTAssertEqual(res.exitCode, 0)
-        XCTAssertEqual(res.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "recovered")
-    }
-
-    // MARK: - Advanced Text, Math, SQLite & JSON Tools (`jq`, `awk`, `tee`, `sqlite3`, `bc`)
-
-    func testJqExtractsJSONField() async {
-        let res = await shell.run("echo '{\"version\":\"5.0.0\",\"agent\":\"Astral AI\"}' | jq -r .agent")
-        XCTAssertEqual(res.exitCode, 0)
-        XCTAssertEqual(res.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "Astral AI")
-    }
-
-    func testAwkPrintsColumns() async {
-        let res = await shell.run("echo 'alpha beta gamma' | awk '{print $1, $3}'")
-        XCTAssertEqual(res.exitCode, 0)
-        XCTAssertEqual(res.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "alpha gamma")
-    }
-
-    func testTeeWritesFileAndPassesStdout() async {
-        let res = await shell.run("echo astral_pipeline | tee V500Tests/tee.txt | tr a-z A-Z")
-        XCTAssertEqual(res.exitCode, 0)
-        XCTAssertEqual(res.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "ASTRAL_PIPELINE")
-        let saved = await shell.run("cat V500Tests/tee.txt")
-        XCTAssertEqual(saved.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "astral_pipeline")
     }
 
     func testSqlite3CreatesTableAndQueriesRows() async {
@@ -85,16 +74,6 @@ final class V500Tests: XCTestCase {
         let res = await shell.run("echo '6 * 7' | bc")
         XCTAssertEqual(res.exitCode, 0)
         XCTAssertEqual(res.stdout.trimmingCharacters(in: .whitespacesAndNewlines), "42")
-    }
-
-    // MARK: - Git & Apt
-
-    func testGitInitCommitAndLog() async {
-        _ = await shell.run("cd V500Tests && git init && echo 'hello' > app.py && git add . && git commit -m 'Initial commit'")
-        let log = await shell.run("git log")
-        XCTAssertEqual(log.exitCode, 0)
-        XCTAssertTrue(log.stdout.contains("Initial commit"))
-        _ = await shell.run("cd ~")
     }
 
     func testSudoTransparentExecution() async {

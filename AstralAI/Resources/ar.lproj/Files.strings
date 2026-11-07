@@ -32,6 +32,7 @@
 
 "sandbox.tab.agent" = "الوكيل";
 "sandbox.tab.shell" = "الشل";
+"sandbox.tab.desktop" = "سطح المكتب";
 "sandbox.activity.title" = "نشاط الوكيل المباشر";
 "sandbox.activity.empty" = "كل اللي الوكيل بيعمله بيظهر هنا لحظة بلحظة — بحث ويب، قراءة صفحات، متصفح، أوامر، ملفات وكود — زي كونسول Claude Code. ابعتله مهمة وشوفه بيشتغل.";
 "sandbox.computerIdle" = "الكمبيوتر غير نشط";

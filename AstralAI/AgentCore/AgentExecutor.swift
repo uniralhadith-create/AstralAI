@@ -201,6 +201,14 @@ enum AgentExecutor {
                 lastNarration = accumulated
             }
 
+            if pendingCalls.isEmpty {
+                let recovered = TextToolProtocol.parseCalls(in: accumulated)
+                if !recovered.isEmpty {
+                    pendingCalls = recovered.enumerated().map { idx, call in
+                        ToolCall(id: "exec_rec_\(round)_\(idx)", name: call.name, arguments: call.argumentsJSON)
+                    }
+                }
+            }
             if !pendingCalls.isEmpty {
                 let assistantMessage = ChatMessage(
                     role: .assistant, content: accumulated, toolCalls: pendingCalls)

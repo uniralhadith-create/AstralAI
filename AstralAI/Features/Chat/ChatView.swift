@@ -336,30 +336,147 @@ struct ChatView: View {
         let id: String
         let message: ChatMessage?
         let separatorTitle: String?
+        let thinkingGroup: TurnThinkingGroup?
 
         static func separator(_ title: String, before messageID: UUID) -> TimelineEntry {
-            TimelineEntry(id: "sep-\(messageID.uuidString)", message: nil, separatorTitle: title)
+            TimelineEntry(id: "sep-\(messageID.uuidString)", message: nil, separatorTitle: title, thinkingGroup: nil)
         }
 
         static func message(_ message: ChatMessage) -> TimelineEntry {
-            TimelineEntry(id: message.id.uuidString, message: message, separatorTitle: nil)
+            TimelineEntry(id: message.id.uuidString, message: message, separatorTitle: nil, thinkingGroup: nil)
         }
+
+        static func thinking(_ group: TurnThinkingGroup) -> TimelineEntry {
+            TimelineEntry(id: "think-\(group.id)", message: nil, separatorTitle: nil, thinkingGroup: group)
+        }
+    }
+
+    private static func stepDetail(for call: ToolCall) -> String {
+        let args = call.parsedArguments
+        for key in ["query", "command", "url", "path", "title", "name", "code"] {
+            if let val = args[key]?.stringValue, !val.isEmpty {
+                let flat = val.replacingOccurrences(of: "\n", with: " ")
+                return flat.count > 80 ? String(flat.prefix(80)) + "…" : flat
+            }
+        }
+        return ""
     }
 
     private static func timelineEntries(for messages: [ChatMessage]) -> [TimelineEntry] {
         var entries: [TimelineEntry] = []
         var previousDate: Date?
         let calendar = Calendar.current
-        for message in messages {
-            if let previous = previousDate,
-               calendar.isDate(previous, inSameDayAs: message.createdAt) {
-                // Same day as the previous message: no separator.
-            } else {
-                entries.append(.separator(dayTitle(for: message.createdAt), before: message.id))
-            }
-            previousDate = message.createdAt
-            entries.append(.message(message))
+
+        var pendingThoughts: [String] = []
+        var pendingSteps: [TurnStepItem] = []
+        var seenCallIDs: Set<String> = []
+        var currentGroupAnchorID: String = UUID().uuidString
+
+        func flushPendingGroup() {
+            guard !pendingThoughts.isEmpty || !pendingSteps.isEmpty else { return }
+            let group = TurnThinkingGroup(
+                id: currentGroupAnchorID,
+                thoughts: pendingThoughts,
+                steps: pendingSteps)
+            entries.append(.thinking(group))
+            pendingThoughts = []
+            pendingSteps = []
+            seenCallIDs = []
+            currentGroupAnchorID = UUID().uuidString
         }
+
+        for index in messages.indices {
+            let message = messages[index]
+
+            switch message.role {
+            case .system:
+                continue
+
+            case .user:
+                flushPendingGroup()
+                if let previous = previousDate,
+                   calendar.isDate(previous, inSameDayAs: message.createdAt) {
+                    // Same day
+                } else {
+                    entries.append(.separator(dayTitle(for: message.createdAt), before: message.id))
+                }
+                previousDate = message.createdAt
+                currentGroupAnchorID = message.id.uuidString
+                entries.append(.message(message))
+
+            case .tool:
+                let hasMedia = !(message.videos ?? []).isEmpty
+                    || (message.name == BrowserScreenshotTool.toolName && !(message.images ?? []).isEmpty)
+                if hasMedia {
+                    entries.append(.message(message))
+                }
+                let callID = message.toolCallId ?? message.id.uuidString
+                if !seenCallIDs.contains(callID) {
+                    seenCallIDs.insert(callID)
+                    pendingSteps.append(TurnStepItem(
+                        id: callID,
+                        toolName: message.name ?? "tool",
+                        detail: ""))
+                }
+
+            case .assistant:
+                let extractedBlocks = TextToolProtocol.extractThinkingBlocks(in: message.content)
+                for block in extractedBlocks where !pendingThoughts.contains(block) {
+                    pendingThoughts.append(block)
+                }
+
+                let explicitCalls = message.toolCalls ?? []
+                let embeddedCalls = TextToolProtocol.extractEmbeddedToolCalls(in: message.content)
+                let allCalls = explicitCalls + embeddedCalls
+
+                var hasLaterAssistantInTurn = false
+                if index + 1 < messages.count {
+                    for lookahead in (index + 1)..<messages.count {
+                        let nextRole = messages[lookahead].role
+                        if nextRole == .user { break }
+                        if nextRole == .assistant {
+                            let nextClean = TextToolProtocol.cleanVisibleText(messages[lookahead].content)
+                            if !nextClean.isEmpty || !(messages[lookahead].toolCalls ?? []).isEmpty {
+                                hasLaterAssistantInTurn = true
+                                break
+                            }
+                        }
+                    }
+                }
+
+                let cleaned = TextToolProtocol.cleanVisibleText(message.content)
+                let isIntermediateTurn = !allCalls.isEmpty || hasLaterAssistantInTurn
+
+                if isIntermediateTurn {
+                    if !cleaned.isEmpty, !pendingThoughts.contains(cleaned) {
+                        pendingThoughts.append(cleaned)
+                    }
+                    for call in allCalls {
+                        if !seenCallIDs.contains(call.id) {
+                            seenCallIDs.insert(call.id)
+                            pendingSteps.append(TurnStepItem(
+                                id: call.id,
+                                toolName: call.name,
+                                detail: stepDetail(for: call)))
+                        }
+                    }
+                } else {
+                    flushPendingGroup()
+                    if !cleaned.isEmpty {
+                        if let previous = previousDate,
+                           calendar.isDate(previous, inSameDayAs: message.createdAt) {
+                            // Same day
+                        } else {
+                            entries.append(.separator(dayTitle(for: message.createdAt), before: message.id))
+                        }
+                        previousDate = message.createdAt
+                        entries.append(.message(message))
+                    }
+                }
+            }
+        }
+
+        flushPendingGroup()
         return entries
     }
 
@@ -391,7 +508,10 @@ struct ChatView: View {
                     let entries = Self.timelineEntries(for: session.messages)
                     ForEach(entries) { entry in
                         Group {
-                            if let message = entry.message {
+                            if let group = entry.thinkingGroup {
+                                ThinkingStepsDrawer(group: group)
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                            } else if let message = entry.message {
                                 MessageRow(message)
                                     .transition(
                                         .asymmetric(

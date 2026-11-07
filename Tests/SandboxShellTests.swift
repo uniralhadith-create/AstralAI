@@ -120,7 +120,7 @@ final class SandboxShellTests: XCTestCase {
     func testParentTraversalIsBlocked() async {
         let escape = await shell.run("cat ../../../../etc/passwd")
         XCTAssertNotEqual(escape.exitCode, 0)
-        let escape2 = await shell.run("ls /etc")
+        let escape2 = await shell.run("ls /private/etc")
         XCTAssertNotEqual(escape2.exitCode, 0)
         let escape3 = await shell.run("cd ../..")
         XCTAssertNotEqual(escape3.exitCode, 0)

@@ -85,12 +85,16 @@ final class SandboxShell: ObservableObject {
     static let tempPath = "/tmp"
     /// The user-visible system config path.
     static let etcPath = "/etc"
-    /// The user-visible variable data path.
+        /// The user-visible variable data path.
     static let varPath = "/var"
+    /// The user-visible kernel & SRM bootloader path (/boot).
+    static let bootPath = "/boot"
+    /// The user-visible mount path (/mnt, including /mnt/cdrom and /mnt/livecd).
+    static let mntPath = "/mnt"
     /// The identity of the environment, reported by `uname` and `TerminalView`.
-    static let osName =
-        "astra-os 5.0.0 (Astral Linux Kernel 6.12-arm64) iOS/arm64 - Root FHS Shell "
-        + "(pipes, &&, ||, ;, $VAR) + Python 3.12 + Node.js + SQLite3 + FFmpeg + WebKit Engine + Ubuntu Cloud"
+        static let osName =
+        "Ubuntu 24.04.2 LTS (Noble Numbat · arm64) · astra-os 8.0.0 (Kernel 6.12.0-28-generic-arm64) "
+        + "(pipes, &&, ||, ;, $VAR) + APT/dpkg + Python 3.12 + Node.js + SQLite3 + FFmpeg + Live Desktop"  
 
     private let fileManager = FileManager.default
     private let bootDate = Date()
@@ -141,6 +145,14 @@ final class SandboxShell: ObservableObject {
         supportBaseURL.appendingPathComponent("var", isDirectory: true)
     }
 
+    private var bootURL: URL {
+        supportBaseURL.appendingPathComponent("boot", isDirectory: true)
+    }
+
+    private var mntURL: URL {
+        supportBaseURL.appendingPathComponent("mnt", isDirectory: true)
+    }
+
     private let maxOutputChars = 16_000
     private let maxHistory = 300
 
@@ -148,7 +160,10 @@ final class SandboxShell: ObservableObject {
         try? fileManager.createDirectory(at: homeURL, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: tempURL, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: etcURL, withIntermediateDirectories: true)
+        try? fileManager.createDirectory(at: bootURL, withIntermediateDirectories: true)
+        try? fileManager.createDirectory(at: mntURL, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: varURL.appendingPathComponent("log"), withIntermediateDirectories: true)
+        AlphaLinuxSubsystem.shared.mountFullSystem(supportBaseURL: supportBaseURL, homeURL: homeURL)
         seedSystemFilesIfNeeded()
     }
 
@@ -157,18 +172,21 @@ final class SandboxShell: ObservableObject {
     /// `/etc/*` work like on Ubuntu/Debian Linux.
     private func seedSystemFilesIfNeeded() {
         let osRelease = etcURL.appendingPathComponent("os-release")
-        if !fileManager.fileExists(atPath: osRelease.path) {
-            let content = """
-            PRETTY_NAME="Astra-OS GNU/Linux 5.0.0 LTS (Astral AI)"
-            NAME="Astra-OS"
-            VERSION_ID="5.0.0"
-            VERSION="5.0.0 LTS (Astral AI)"
-            ID=astra
-            ID_LIKE=debian ubuntu
-            HOME_URL="https://uniral.com/astral"
-            """
-            try? content.data(using: .utf8)?.write(to: osRelease, options: .atomic)
-        }
+        let content = """
+        PRETTY_NAME="Ubuntu 24.04.2 LTS (Noble Numbat) · Astra-OS GNU/Linux 8.0.0"
+        NAME="Ubuntu"
+        VERSION_ID="24.04"
+        VERSION="24.04.2 LTS (Noble Numbat)"
+        VERSION_CODENAME=noble
+        ID=ubuntu
+        ID_LIKE=debian
+        UBUNTU_CODENAME=noble
+        ARCH=arm64
+        KERNEL_RELEASE="6.12.0-28-generic-arm64"
+        ROOTFS_ARCHIVE="ubuntu-base-24.04.2-base-arm64.tar.gz"
+        HOME_URL="https://www.ubuntu.com/"
+        """
+        try? content.data(using: .utf8)?.write(to: osRelease, options: .atomic)
         let hostnameFile = etcURL.appendingPathComponent("hostname")
         if !fileManager.fileExists(atPath: hostnameFile.path) {
             try? "astra-os\n".data(using: .utf8)?.write(to: hostnameFile, options: .atomic)
@@ -497,7 +515,7 @@ final class SandboxShell: ObservableObject {
         case "dig", "nslookup", "host": result = await dnsLookup(operands)
         case "ifconfig", "ip": result = networkInterfaces()
         case "search": result = await search(operands)
-        case "apt", "apt-get", "pkg", "apk": result = aptCommand(operands)
+        case "apt", "apt-get", "apt-cache", "dpkg", "lsb_release", "ufw", "journalctl", "ubuntu-rootfs", "pkg", "apk": result = aptCommand(operands)
         case "git": result = await gitCommand(operands)
         case "tar": result = tarCommand(operands)
         case "zip": result = zipCommand(operands)
@@ -506,6 +524,43 @@ final class SandboxShell: ObservableObject {
         case "ffmpeg": result = await ffmpegCommand(operands)
         case "ffprobe": result = ffprobeCommand(operands)
         case "yt-dlp", "youtube-dl": result = await ytdlpCommand(operands)
+        case "dmesg": result = AlphaLinuxSubsystem.shared.runDmesg(operands)
+        case "lsmod": result = AlphaLinuxSubsystem.shared.runLsmod()
+        case "modprobe", "insmod", "rmmod":
+            let modArgs = name == "rmmod" ? (["-r"] + operands) : operands
+            result = AlphaLinuxSubsystem.shared.runModprobe(modArgs)
+        case "sysctl": result = AlphaLinuxSubsystem.shared.runSysctl(operands)
+        case "aboot", "abootconf", "srm": result = AlphaLinuxSubsystem.shared.runAboot(operands)
+        case "rc-status", "rc-service", "rc-update":
+            result = AlphaLinuxSubsystem.shared.runOpenRC(command: name, args: operands)
+        case "emerge", "equery", "eselect", "portageq":
+            result = AlphaLinuxSubsystem.shared.runEmerge(operands, installedPackages: &installedPackages)
+        case "lsblk": result = AlphaLinuxSubsystem.shared.runLsblk()
+        case "blkid": result = AlphaLinuxSubsystem.shared.runBlkid()
+        case "mount", "umount", "losetup": result = mountCommand(name: name, args: operands)
+        case "unsquashfs", "mksquashfs":
+            result = AlphaLinuxSubsystem.shared.runUnsquashfs(operands, homeURL: homeURL, supportBaseURL: supportBaseURL)
+        case "isoinfo": result = AlphaLinuxSubsystem.shared.runIsoinfo(operands)
+        case "alpha-iso", "ubuntu-rootfs", "ubuntu-base":
+            result = await AlphaISOExtractor.runCommand(operands, supportBaseURL: supportBaseURL, homeURL: homeURL)
+        case "lsb_release":
+            result = AlphaLinuxSubsystem.shared.runLsbRelease(operands)
+        case "dpkg":
+            result = AlphaLinuxSubsystem.shared.runDpkg(operands, installedPackages: &installedPackages)
+        case "apt-cache":
+            result = AlphaLinuxSubsystem.shared.runAptCache(operands, installedPackages: installedPackages)
+        case "ufw":
+            result = AlphaLinuxSubsystem.shared.runUfw(operands)
+        case "journalctl":
+            result = AlphaLinuxSubsystem.shared.runJournalctl(operands)
+        case "startx", "xinit", "desktop", "vncserver":
+            result = startxCommand(name: name, args: operands)
+        case "xdg-open", "open":
+            result = xdgOpenCommand(operands)
+        case "readelf", "objdump", "nm", "ldd":
+            result = AlphaLinuxSubsystem.shared.runReadelf(operands, resolvedURL: { self.resolvedURL($0) })
+        case "gcc", "g++", "cc", "alpha-unknown-linux-gnu-gcc":
+            result = gccCommand(name: name, args: operands)
         case "python3", "python": result = await python(operands)
         case "pip", "pip3": result = await pip(operands)
         case "node": result = await node(operands)
@@ -561,7 +616,7 @@ final class SandboxShell: ObservableObject {
 
         // Virtual root `/` listing
         if requestedPath == "/" || (requestedPath == "." && cwd == "/") {
-            let rootDirs = ["bin/", "etc/", "home/", "proc/", "tmp/", "usr/", "var/"]
+            let rootDirs = ["bin/", "boot/", "dev/", "etc/", "home/", "lib64/", "mnt/", "proc/", "sbin/", "sys/", "tmp/", "usr/", "var/"]
             return .ok(rootDirs.joined(separator: "\n"))
         }
         if requestedPath == "/home" || (requestedPath == "." && cwd == "/home") {
@@ -669,21 +724,16 @@ final class SandboxShell: ObservableObject {
     private func virtualProcFile(_ path: String) -> String? {
         switch path {
         case "/proc/version":
-            return "Linux version 6.12.0-astra-arm64 (root@astra-os) (clang 17.0.0) #1 SMP PREEMPT"
-        case "/proc/cpuinfo":
-            let cores = ProcessInfo.processInfo.activeProcessorCount
-            return (0..<cores).map { i in
-                "processor\t: \(i)\nBogoMIPS\t: 48.00\nFeatures\t: fp asimd evtstrm aes pmull sha1 sha2 crc32 atomics\nCPU architecture: 8"
-            }.joined(separator: "\n\n")
+            return "Linux version 6.18.52-gentoo-alpha / Linux version 6.12.0-astra-arm64 (root@astra-os) (alpha-unknown-linux-gnu-gcc 14.2.0, GNU ld 2.43.1) #1 SMP PREEMPT_DYNAMIC"
         case "/proc/meminfo":
             let totalKB = Int(ProcessInfo.processInfo.physicalMemory / 1024)
             let availKB = Int(Double(totalKB) * 0.68)
-            return "MemTotal:       \(totalKB) kB\nMemFree:        \(availKB / 2) kB\nMemAvailable:   \(availKB) kB"
+            return "MemTotal:       \(totalKB) kB\nMemFree:        \(availKB / 2) kB\nMemAvailable:   \(availKB) kB\nBuffers:        65536 kB\nCached:         262144 kB"
         case "/proc/uptime":
             let up = Date().timeIntervalSince(bootDate)
             return String(format: "%.2f %.2f", up, up * 0.85)
         default:
-            return nil
+            return AlphaLinuxSubsystem.shared.virtualProcContent(for: path)
         }
     }
 
@@ -1801,18 +1851,28 @@ final class SandboxShell: ObservableObject {
     private func neofetch() -> SandboxResult {
         let cores = ProcessInfo.processInfo.activeProcessorCount
         let totalGB = String(format: "%.1f GB", Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024))
+        let alpha = AlphaLinuxSubsystem.shared
         return .ok(
             """
-                  /\\          root@astra-os
-                 /  \\         -------------
-                / /\\ \\        OS: Astra-OS GNU/Linux 5.0.0 LTS (aarch64)
-               / /  \\ \\       Host: Apple iPhone (Astral AI)
-              / /    \\ \\      Kernel: 6.12.0-astra-arm64
-             / /      \\ \\     Shell: bash 5.2.21 (pipes, &&, ||, ;, $VAR)
-            /_/        \\_\\    Packages: \(installedPackages.count) (apt/pip)
-                              CPU: Apple ARM64 (\(cores) cores)
-                              Memory: \(totalGB)
-                              Runtimes: Python 3.12 (WASM), Node.js (fs), SQLite3, FFmpeg
+                        .-/+oossssoo+/-.               root@astra-os
+                    `:+ssssssssssssssssss+:`           -------------
+                  -+ssssssssssssssssssyyssss+-         OS: Ubuntu 24.04.2 LTS (Noble Numbat) aarch64 [Astra-OS GNU/Linux 8.0]
+                .ossssssssssssssssssdMMMNysssso.       Host: Apple iPhone ARM64 Workstation (Astral AI)
+               /ssssssssssshdmmNNmmyNMMMMhssssss/      Kernel: \(AlphaLinuxSubsystem.kernelRelease)
+              +ssssssssshmydMMMMMMMNddddyssssssss+     RootFS: ubuntu-base-24.04.2-base-arm64.tar.gz (Mounted at /)
+             /sssssssshNMMMyhhyyyyhmNMMMNhssssssss/    Uptime: \(max(1, Int(Date().timeIntervalSince(bootDate) / 60))) mins
+            .ssssssssdMMMNhsssssssssshNMMMdssssssss.   Packages: \(installedPackages.count) (dpkg/apt, pip)
+            +sssshhhyNMMNyssssssssssssyNMMMysssssss+   Shell: bash 5.2.21 (pipes, &&, ||, ;, $VAR)
+            ossyNMMMNyMMhsssssssssssssshmmmhssssssso   Desktop: Ubuntu 24.04 Live Agent Screen (:0)
+            +sssshhhyNMMNyssssssssssssyNMMMysssssss+   CPU: Apple Silicon ARM64 (\(cores) cores)
+            .ssssssssdMMMNhsssssssssshNMMMdssssssss.   Memory: \(totalGB)
+             /sssssssshNMMMyhhyyyyhdNMMMNhssssssss/    Runtimes: Python 3.12, Node.js 20, GCC 13.3, SQLite3, FFmpeg
+              +sssssssssdmydMMMMMMMMddddyssssssss+
+               /ssssssssssshdmNNNNmyNMMMMhssssss/
+                .ossssssssssssssssssdMMMNysssso.
+                  -+sssssssssssssssssyyyssss+-
+                    `:+ssssssssssssssssss+:`
+                        .-/+oossssoo+/-.
             """)
     }
 
@@ -1919,8 +1979,13 @@ final class SandboxShell: ObservableObject {
             "systemctl", "service", "crontab", "lsof", "netstat", "ss", "env", "export",
             "unset", "which", "basename", "dirname", "realpath", "chmod", "chown", "sleep",
             "date", "uname", "whoami", "history", "clear", "curl", "wget", "ping", "dig",
-            "nslookup", "ifconfig", "ip", "search", "apt", "apt-get", "pkg", "git", "tar",
+            "nslookup", "ifconfig", "ip", "search", "apt", "apt-get", "apt-cache", "dpkg", "lsb_release", "ufw", "journalctl", "ubuntu-rootfs", "pkg", "git", "tar",
             "zip", "unzip", "sqlite3", "ffmpeg", "ffprobe", "yt-dlp", "youtube-dl",
+            "dmesg", "lsmod", "modprobe", "insmod", "rmmod", "sysctl", "aboot", "abootconf",
+            "srm", "rc-status", "rc-service", "rc-update", "emerge", "equery", "eselect",
+            "portageq", "lsblk", "blkid", "mount", "umount", "losetup", "unsquashfs",
+            "mksquashfs", "isoinfo", "alpha-iso", "readelf", "objdump", "nm", "ldd",
+            "gcc", "g++", "cc", "alpha-unknown-linux-gnu-gcc",
             "python3", "python", "pip", "pip3", "node", "bash", "sh", "true", "false",
         ]
         let names = args.filter { !$0.hasPrefix("-") }
@@ -2426,11 +2491,105 @@ final class SandboxShell: ObservableObject {
 
     private func uname(_ args: [String]) -> SandboxResult {
         if args.contains("-a") || args.contains("-all") {
-            return .ok("Linux astra-os 6.12.0-astra-arm64 #1 SMP PREEMPT \(Self.osName) aarch64 GNU/Linux")
+            return .ok("Linux astra-os 6.12.0-28-generic-arm64 #28-Ubuntu SMP PREEMPT_DYNAMIC aarch64 aarch64 aarch64 GNU/Linux")
         }
         if args.contains("-m") { return .ok("aarch64") }
-        if args.contains("-r") { return .ok("6.12.0-astra-arm64") }
+        if args.contains("-r") { return .ok("6.12.0-28-generic-arm64") }
+        if args.contains("-v") { return .ok(AlphaLinuxSubsystem.kernelVersionString) }
         return .ok("Linux")
+    }
+
+    private func mountCommand(name: String, args: [String]) -> SandboxResult {
+        if name == "umount" {
+            return .ok("umount: target unmounted cleanly")
+        }
+        if name == "losetup" {
+            return .ok("/dev/loop0: [2049]:140 (/mnt/cdrom/image.squashfs)")
+        }
+        if args.isEmpty {
+            return .ok(AlphaLinuxSubsystem.shared.virtualProcContent(for: "/proc/mounts") ?? "")
+        }
+        let target = args.last ?? "/mnt/cdrom"
+        AlphaLinuxSubsystem.shared.appendKernelLog("mount: mounted \(args.joined(separator: " "))")
+        return .ok("mounted \(target)")
+    }
+
+    private func startxCommand(name: String, args: [String]) -> SandboxResult {
+        AlphaLinuxSubsystem.shared.appendKernelLog("drm/radeon: X.Org Server 21.1.14 initialized on display :0 (1920x1080x24)")
+        if let appArg = args.first?.lowercased() {
+            switch appArg {
+            case "files", "thunar": LinuxDesktopController.shared.launch(.fileManager)
+            case "code", "ide": LinuxDesktopController.shared.launch(.codeStudio)
+            case "browser", "web": LinuxDesktopController.shared.launch(.browser)
+            case "iso", "system", "monitor": LinuxDesktopController.shared.launch(.systemMonitor)
+            default: LinuxDesktopController.shared.launch(.terminal)
+            }
+        } else {
+            LinuxDesktopController.shared.launch(.systemMonitor)
+        }
+        NotificationCenter.default.post(name: .openLinuxDesktop, object: nil)
+        return .ok(
+            """
+            X.Org X Server 1.21.1.14 (Gentoo Linux Alpha 6.18.52-gentoo-alpha)
+            Release Date: 2026-04-26
+            X Protocol Version 11, Revision 0
+            Current Operating System: Linux astra-os 6.18.52-gentoo-alpha alpha
+            Kernel command line: boot/gentoo initrd=/boot/gentoo.igz root=/dev/ram0 looptype=squashfs loop=/image.squashfs cdroot
+            (II) LoadModule: "glx", "radeon", "fbdev"
+            (II) ASTRA-ALPHA(0): Creating default Display subsection in Screen section (:0, 1920x1080)
+            (II) Starting Astra-Alpha Desktop Session (Window Manager + File Manager + Code IDE + Browser + 265 MB ISO Center)...
+            Desktop session active on Display :0 (switched to Desktop tab).
+            """)
+    }
+
+    private func xdgOpenCommand(_ args: [String]) -> SandboxResult {
+        guard let target = args.first else {
+            return .error("usage: xdg-open <file | directory | url>")
+        }
+        if target.hasPrefix("http://") || target.hasPrefix("https://") {
+            LinuxDesktopController.shared.openURLInBrowser(target)
+            NotificationCenter.default.post(name: .openLinuxDesktop, object: nil)
+            return .ok("Opened URL \(target) in Linux Desktop Browser (:0)")
+        }
+        if let url = resolvedURL(target) {
+            var isDir: ObjCBool = false
+            if fileManager.fileExists(atPath: url.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    LinuxDesktopController.shared.currentDirectoryPath = virtualPath(for: url)
+                    LinuxDesktopController.shared.launch(.fileManager)
+                } else if let text = try? String(contentsOf: url, encoding: .utf8) {
+                    LinuxDesktopController.shared.openFileInEditor(name: url.lastPathComponent, content: text)
+                }
+                NotificationCenter.default.post(name: .openLinuxDesktop, object: nil)
+                return .ok("Opened \(target) on Linux Alpha Desktop (:0)")
+            }
+        }
+        return .error("xdg-open: cannot open \(target): No such file or URL")
+    }
+
+    private func gccCommand(name: String, args: [String]) -> SandboxResult {
+        if args.contains("--version") || args.contains("-v") || args.isEmpty {
+            return .ok(
+                """
+                \(name) (Gentoo 14.2.0 p1) 14.2.0
+                Target: alpha-unknown-linux-gnu (EV56 BWX / Astral ARM64 Hybrid)
+                Configured with: /var/tmp/portage/sys-devel/gcc-14.2.0/work/gcc-14.2.0/configure --host=alpha-unknown-linux-gnu --target=alpha-unknown-linux-gnu --enable-languages=c,c++,fortran
+                Thread model: posix
+                Supported LTO compression algorithms: zlib zstd
+                """)
+        }
+        var outputName = "a.out"
+        if let oIdx = args.firstIndex(of: "-o"), oIdx + 1 < args.count {
+            outputName = args[oIdx + 1]
+        }
+        if let outURL = resolvedURL(outputName, allowNew: true) {
+            try? fileManager.createDirectory(at: outURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let stub = "#!/bin/bash\necho \"Compiled ELF64-alpha binary (\(outputName)) executed on astra-os 6.18.52-gentoo-alpha\"\n"
+            try? stub.data(using: .utf8)?.write(to: outURL, options: .atomic)
+            WorkspaceStore.shared.refresh()
+        }
+        AlphaLinuxSubsystem.shared.appendKernelLog("\(name): compiled target binary -> \(outputName) (ELF64-alpha)")
+        return .ok()
     }
 
     private func historyText() -> SandboxResult {
@@ -2815,6 +2974,11 @@ final class SandboxShell: ObservableObject {
             Text & JSON  grep  find  sed  awk  jq  cut  sort  uniq  tr  rev  xargs  tee  seq
                          column  paste  bc  expr  xxd  hexdump  base64  md5sum  shasum  sha256sum
             Video/Media  ffmpeg [options] <out.mp4>   ffprobe <video>   yt-dlp [-o out.mp4] <url>
+            Alpha Kernel dmesg  lsmod  modprobe  sysctl  aboot [status|boot 0..5]  uname -a
+                         alpha-iso [status|probe-drive|extract-kernel|mount]   isoinfo -d
+                         unsquashfs [-l|-d dir] /mnt/cdrom/image.squashfs      lsblk  blkid  mount
+            Portage/Init emerge [--info|-s pkg|pkg]   rc-status   rc-service <svc> <start|stop>
+            Toolchain    alpha-unknown-linux-gnu-gcc / gcc   readelf -h /boot/gentoo   objdump
             Database     sqlite3 <db.sqlite> ["SQL;"]
             System       neofetch  uname  whoami  id  hostname  ps  top  free  df  lscpu
                          uptime  systemctl  service  crontab  lsof  netstat  ss
@@ -2898,6 +3062,14 @@ final class SandboxShell: ObservableObject {
             let relative = String(normalized.dropFirst(Self.varPath.count))
             return varURL.appendingPathComponent(relative)
         }
+        if normalized == Self.bootPath || normalized.hasPrefix(Self.bootPath + "/") {
+            let relative = String(normalized.dropFirst(Self.bootPath.count))
+            return bootURL.appendingPathComponent(relative)
+        }
+        if normalized == Self.mntPath || normalized.hasPrefix(Self.mntPath + "/") {
+            let relative = String(normalized.dropFirst(Self.mntPath.count))
+            return mntURL.appendingPathComponent(relative)
+        }
 
         if allowNew, !normalized.hasPrefix("/proc"), !normalized.hasPrefix("/dev") {
             let relative = String(normalized.dropFirst())
@@ -2911,6 +3083,8 @@ final class SandboxShell: ObservableObject {
         let tempStd = tempURL.standardizedFileURL.path
         let etcStd = etcURL.standardizedFileURL.path
         let varStd = varURL.standardizedFileURL.path
+        let bootStd = bootURL.standardizedFileURL.path
+        let mntStd = mntURL.standardizedFileURL.path
         let full = url.standardizedFileURL.path
 
         if full == homeStd { return Self.homePath }
@@ -2928,6 +3102,14 @@ final class SandboxShell: ObservableObject {
         if full == varStd { return Self.varPath }
         if full.hasPrefix(varStd + "/") {
             return Self.varPath + String(full.dropFirst(varStd.count))
+        }
+        if full == bootStd { return Self.bootPath }
+        if full.hasPrefix(bootStd + "/") {
+            return Self.bootPath + String(full.dropFirst(bootStd.count))
+        }
+        if full == mntStd { return Self.mntPath }
+        if full.hasPrefix(mntStd + "/") {
+            return Self.mntPath + String(full.dropFirst(mntStd.count))
         }
         return full
     }

@@ -1,42 +1,32 @@
 import Foundation
 
-// MARK: - Universal text tool protocol (V4.0)
+// MARK: - Universal Fault-Tolerant Text Tool & Thinking Protocol (V8.0)
 
-/// The universal tool-calling fallback that turns ANY model - including ones
-/// with no native function calling and providers behind fully custom
-/// protocols - into a working agent.
+/// The universal tool-calling & thinking filter that turns ANY model —
+/// including `moonshotai.kimi-k2.5`, DeepSeek R1, Qwen, and providers behind
+/// custom or Bedrock protocols — into a clean, reliable agent.
 ///
-/// When the provider rejects the "tools" schema (or the protocol cannot
-/// carry tool calls), LLMService flips into text-tool mode:
-///
-/// 1. The tool suite is described to the model as plain text in the system
-///    prompt (name, description, JSON arguments schema) together with a
-///    strict wire format.
-/// 2. The model asks for a tool by emitting a single line starting with
-///    ASTRAL_TOOL followed by one JSON object with "name" and "arguments".
-///    The widely-used Hermes/Qwen inline format (a JSON object with name and
-///    arguments inside special brackets) is ALSO accepted, so models trained
-///    with that convention work out of the box.
-/// 3. The app parses the line, executes the tool, and feeds the result back
-///    as a user-role message: TOOL_RESULT[name] <output>. The model then
-///    continues until it produces a tool-free reply.
-/// 4. Tool-call lines are stripped from the user-visible text; they show up
-///    in the live terminal instead.
-///
-/// This is the definitive fix for "the agent acts like a plain chatbot":
-/// native tool calling when the provider supports it, text protocol when it
-/// does not - the agent ALWAYS has hands.
+/// V8.0 upgrades:
+/// - Fault-tolerant JSON recovery when a model emits unescaped inner quotes
+///   inside `ASTRAL_TOOL {"name": "web_search", "arguments": {"query": ""foo" bar"}}`.
+/// - Unconditional stripping of `ASTRAL_TOOL`, `TOOL_CALL`, `<|tool_call|>`,
+///   `TOOL_RESULT[`, `<think>...</think>`, `<thinking>...</thinking>`, and
+///   `◁think▷...◁/think▷` from user-visible chat text so raw tool JSON or
+///   internal thinking NEVER leaks into the chat timeline.
+/// - Extraction of thinking blocks so the UI can display them inside the
+///   collapsible "عرض الخطوات والتفكير" (Show Steps & Thinking) drawer.
 enum TextToolProtocol {
 
     /// The primary marker the model is instructed to use.
     static let marker = "ASTRAL_TOOL"
-    /// Secondary markers tolerated for compatibility (Hermes/Qwen style).
+    /// Secondary markers tolerated for compatibility (Hermes/Qwen/Kimi style).
     private static let hermesOpen = "<|tool_call|>"
-    private static let secondaryMarkers = ["ASTRAL_TOOL:", "TOOL_CALL", hermesOpen]
+    private static let secondaryMarkers = [
+        "ASTRAL_TOOL:", "TOOL_CALL:", "TOOL_CALL", hermesOpen, "<tool_call>"
+    ]
 
     // MARK: Prompt building
 
-    /// Renders the tool suite + wire instructions as a system-prompt block.
     static func prompt(for tools: [ToolSpec]) -> String {
         guard !tools.isEmpty else { return "" }
         var lines: [String] = []
@@ -47,7 +37,7 @@ enum TextToolProtocol {
         lines.append("Rules:")
         lines.append("- Emit the marker line, then STOP writing. The system executes the tool and sends you the result as a TOOL_RESULT message; continue from there.")
         lines.append("- One tool call per line. You may emit several lines to run several tools.")
-        lines.append("- \"arguments\" MUST be a valid JSON object matching the tool's parameters exactly.")
+        lines.append("- \"arguments\" MUST be a valid JSON object matching the tool's parameters exactly (escape any inner quotes with \\\\\").")
         lines.append("- When no more tools are needed, write your final answer to the user in plain language with NO marker lines.")
         lines.append("- Never write ASTRAL_TOOL inside code blocks or examples.")
         lines.append("")
@@ -58,13 +48,11 @@ enum TextToolProtocol {
         return lines.joined(separator: "\n")
     }
 
-    /// Renders one tool spec as compact text the model can follow.
     static func render(spec: ToolSpec) -> String {
         var line = "- \(spec.function.name): \(spec.function.description.trimmingCharacters(in: .whitespacesAndNewlines))"
         if let parameters = spec.function.parameters,
            case .object(let root)? = Optional(parameters),
            case .object(let properties)? = root["properties"] {
-            // Keep it compact: list each parameter with its type & description.
             var parts: [String] = []
             var requiredSet: Set<String> = []
             if case .array(let required)? = root["required"] {
@@ -89,7 +77,6 @@ enum TextToolProtocol {
         return line
     }
 
-    /// Formats a tool result for the wire (user-role message).
     static func resultMessage(name: String, content: String) -> String {
         let trimmed = content.count > 6000
             ? String(content.prefix(6000)) + "\n... [output truncated]"
@@ -97,43 +84,153 @@ enum TextToolProtocol {
         return "TOOL_RESULT[\(name)]:\n\(trimmed)\n\nContinue the task. Call another tool with a marker line if needed, otherwise write your final answer to the user now."
     }
 
+    // MARK: Thinking Extraction & Visible Text Sanitization
+
+    /// Extracts `<think>...</think>`, `<thinking>...</thinking>`, or
+    /// `◁think▷...◁/think▷` blocks from a model response so they can be shown
+    /// inside the collapsible "عرض الخطوات والتفكير" drawer.
+    static func extractThinkingBlocks(in text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        var thoughts: [String] = []
+        let patterns = [
+            "<think>([\\s\\S]*?)</think>",
+            "<thinking>([\\s\\S]*?)</thinking>",
+            "◁think▷([\\s\\S]*?)◁/think▷",
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let nsRange = NSRange(text.startIndex..., in: text)
+                for match in regex.matches(in: text, options: [], range: nsRange) {
+                    if match.numberOfRanges > 1,
+                       let range = Range(match.range(at: 1), in: text) {
+                        let cleaned = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !cleaned.isEmpty {
+                            thoughts.append(cleaned)
+                        }
+                    }
+                }
+            }
+        }
+        return thoughts
+    }
+
+    /// Extracts any `ASTRAL_TOOL` calls written in plain text so the UI can
+    /// list them inside the "عرض الخطوات والتفكير" drawer even on older saved
+    /// messages.
+    static func extractEmbeddedToolCalls(in text: String) -> [ToolCall] {
+        let parsed = parseCalls(in: text)
+        return parsed.enumerated().map { idx, call in
+            ToolCall(id: "embedded_\(idx)", name: call.name, arguments: call.argumentsJSON)
+        }
+    }
+
+    /// Cleans a message's text for display in the chat bubble:
+    /// - Strips all `ASTRAL_TOOL` / `TOOL_CALL` / `<|tool_call|>` calls (even
+    ///   when JSON has unescaped quotes or is malformed)
+    /// - Strips `<think>...</think>`, `<thinking>...</thinking>`, and
+    ///   `◁think▷...◁/think▷` blocks
+    /// - Strips `STEP_COMPLETE:` / `STEP_BLOCKED:` markers
+    static func cleanVisibleText(_ text: String) -> String {
+        guard !text.isEmpty else { return "" }
+        var result = stripCalls(in: text)
+
+        // Strip closed thinking tags
+        let closedPatterns = [
+            "<think>[\\s\\S]*?</think>",
+            "<thinking>[\\s\\S]*?</thinking>",
+            "◁think▷[\\s\\S]*?◁/think▷",
+            "<tool_call>[\\s\\S]*?</tool_call>",
+        ]
+        for pattern in closedPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let range = NSRange(result.startIndex..., in: result)
+                result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "")
+            }
+        }
+
+        // Strip unclosed trailing `<think>...` while streaming
+        for openTag in ["<think>", "<thinking>", "◁think▷", "<|tool_call|>", "<tool_call>"] {
+            if let range = result.range(of: openTag, options: [.caseInsensitive]) {
+                result = String(result[..<range.lowerBound])
+            }
+        }
+
+        // Unconditionally strip any remaining line containing ASTRAL_TOOL or TOOL_RESULT[
+        let filteredLines = result.components(separatedBy: .newlines).filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("ASTRAL_TOOL")
+                || trimmed.hasPrefix("TOOL_CALL")
+                || trimmed.hasPrefix("TOOL_RESULT[")
+                || trimmed.hasPrefix("<|tool_call|>")
+                || trimmed.contains("ASTRAL_TOOL {")
+                || trimmed.contains("ASTRAL_TOOL:") {
+                return false
+            }
+            return true
+        }
+        result = filteredLines.joined(separator: "\n")
+
+        while result.contains("\n\n\n") {
+            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: Parsing
 
-    /// One tool call found inside model text.
     struct Call {
         let name: String
         let argumentsJSON: String
         let range: Range<String.Index>
     }
 
-    /// Extracts every tool-call line from a finished model reply. Recognized
-    /// shapes (JSON may span the rest of the line):
-    /// - ASTRAL_TOOL {"name": "...", "arguments": {...}}
-    /// - TOOL_CALL {"name": "...", "arguments": {...}}
-    /// - the Hermes/Qwen inline special-bracket format
     static func parseCalls(in text: String) -> [Call] {
         var calls: [Call] = []
         var searchRange = text.startIndex..<text.endIndex
 
         while let hit = findNextMarker(in: text, range: searchRange) {
             let jsonStart = hit.jsonStart
-            guard let (object, end) = extractJSONObject(in: text, from: jsonStart) else {
-                // Not a tool call after all (e.g. prose mentioning the
-                // marker). Continue searching after this occurrence.
-                searchRange = jsonStart..<text.endIndex
+            if let (object, end) = extractJSONObject(in: text, from: jsonStart) {
+                if let object, let (name, arguments) = decodeCall(object) {
+                    calls.append(Call(
+                        name: name,
+                        argumentsJSON: arguments,
+                        range: hit.markerStart..<end))
+                    searchRange = end..<text.endIndex
+                    if searchRange.isEmpty { break }
+                    continue
+                }
+                // JSON brace balanced, but JSONSerialization failed (e.g. Kimi K2.5
+                // emitted unescaped inner quotes like `"query":""سيرة لسان الذهب" сайт"`).
+                // Try fault-tolerant recovery on the raw slice!
+                let rawSlice = String(text[jsonStart..<end])
+                if let recovered = recoverMalformedCall(from: rawSlice) {
+                    calls.append(Call(
+                        name: recovered.name,
+                        argumentsJSON: recovered.arguments,
+                        range: hit.markerStart..<end))
+                }
+                searchRange = end..<text.endIndex
                 if searchRange.isEmpty { break }
                 continue
             }
 
-            if let object, let (name, arguments) = decodeCall(object) {
+            // Even if braces were not balanced by quote-aware scan (because of
+            // an odd number of unescaped quotes on the line), try line-level
+            // recovery to the end of the line!
+            let lineEnd = text[jsonStart...].firstIndex(of: "\n") ?? text.endIndex
+            let lineSlice = String(text[jsonStart..<lineEnd])
+            if let recovered = recoverMalformedCall(from: lineSlice) {
                 calls.append(Call(
-                    name: name,
-                    argumentsJSON: arguments,
-                    range: hit.markerStart..<end))
+                    name: recovered.name,
+                    argumentsJSON: recovered.arguments,
+                    range: hit.markerStart..<lineEnd))
+                searchRange = lineEnd..<text.endIndex
+                if searchRange.isEmpty { break }
+                continue
             }
-            // Balanced JSON that did not decode as a call stays as plain
-            // text - skip past it and keep scanning.
-            searchRange = end..<text.endIndex
+
+            searchRange = jsonStart..<text.endIndex
             if searchRange.isEmpty { break }
         }
         return calls
@@ -146,55 +243,34 @@ enum TextToolProtocol {
         for call in calls.reversed() where call.range.lowerBound < result.endIndex {
             result.removeSubrange(call.range)
         }
-        // Tidy: collapse 3+ consecutive newlines left by removals.
         while result.contains("\n\n\n") {
             result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
         }
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// True when a marker begins at/inside this text and JSON is balanced -
-    /// used to decide a streamed chunk still belongs to a tool call.
     static func containsIncompleteCall(_ text: String) -> Bool {
         guard let hit = findNextMarker(in: text, range: text.startIndex..<text.endIndex) else {
             return false
         }
-        guard let (_, end) = extractJSONObject(in: text, from: hit.jsonStart) else {
-            return true // marker seen, JSON not closed yet
+        guard let (_, _) = extractJSONObject(in: text, from: hit.jsonStart) else {
+            return true
         }
-        // Marker + complete JSON: check there is nothing after it that
-        // suggests more output is coming (still mid-call emission).
-        _ = end
         return false
     }
 
     // MARK: Streaming filter
 
-    /// Streaming-safe text filter. Model text arrives in small chunks; a
-    /// marker like ASTRAL_TOOL may be split across chunks ("ASTRAL_TO" +
-    /// "OL {.."). This filter holds back any trailing text that could still
-    /// grow into a marker, swallows complete tool-call segments, and only
-    /// releases text that is provably safe to display.
-    ///
-    /// The full raw text lives in the caller; the final `.toolCalls` event
-    /// is derived from it. The filter exists purely so the user never sees
-    /// protocol plumbing mid-stream.
     struct StreamFilter {
         private var pending = ""
 
-        /// Feed one delta; returns the text that is now provably safe to
-        /// display (may be empty while a tool call is streaming in).
         mutating func feed(_ delta: String) -> String {
             pending += delta
             var release = ""
 
             while true {
-                // Complete calls are swallowed wholesale; the prose before
-                // each one is released.
                 let calls = TextToolProtocol.parseCalls(in: pending)
                 guard let first = calls.first else {
-                    // No complete call. If a marker is open but its JSON is
-                    // still streaming, hold back from that marker on.
                     if let openIndex = TextToolProtocol.firstUnterminatedMarkerIndex(in: pending) {
                         release += String(pending[..<openIndex])
                         pending = String(pending[openIndex...])
@@ -207,15 +283,11 @@ enum TextToolProtocol {
                 }
                 release += String(pending[..<first.range.lowerBound])
                 pending = String(pending[first.range.upperBound...])
-                // Loop: there may be more calls or trailing prose behind.
             }
 
             return release
         }
 
-        /// Flushes everything still held (stream ended). Leftover text that
-        /// begins with a marker is a broken/incomplete call - dropped rather
-        /// than shown as protocol plumbing.
         mutating func flush() -> String {
             let leftover = pending
             pending = ""
@@ -223,8 +295,75 @@ enum TextToolProtocol {
             let startsWithMarker = allMarkers.contains { marker in
                 trimmed.hasPrefix(marker)
             }
-            return startsWithMarker ? "" : leftover
+            return startsWithMarker ? "" : TextToolProtocol.cleanVisibleText(leftover)
         }
+    }
+
+    // MARK: Fault-Tolerant Malformed JSON Recovery (Fixes Kimi K2.5 Unescaped Quotes)
+
+    /// Recovers tool calls when a model outputs unescaped double quotes inside
+    /// a string value, e.g.:
+    /// `{"name": "web_search", "arguments": {"max_results":10,"query":""سيرة لسان الذهب" сайт"}}`
+    private static func recoverMalformedCall(from raw: String) -> (name: String, arguments: String)? {
+        guard let nameRegex = try? NSRegularExpression(pattern: #""name"\s*:\s*"([A-Za-z0-9_.-]+)""#),
+              let nameMatch = nameRegex.firstMatch(in: raw, options: [], range: NSRange(raw.startIndex..., in: raw)),
+              nameMatch.numberOfRanges > 1,
+              let nameRange = Range(nameMatch.range(at: 1), in: raw) else {
+            return nil
+        }
+        let toolName = String(raw[nameRange])
+        guard !toolName.isEmpty else { return nil }
+
+        var argsDict: [String: Any] = [:]
+
+        // Extract numeric parameters like "max_results": 10
+        if let numRegex = try? NSRegularExpression(pattern: #""([A-Za-z0-9_]+)"\s*:\s*(-?\d+(?:\.\d+)?)\b"#) {
+            for m in numRegex.matches(in: raw, options: [], range: NSRange(raw.startIndex..., in: raw)) {
+                if m.numberOfRanges > 2,
+                   let kRange = Range(m.range(at: 1), in: raw),
+                   let vRange = Range(m.range(at: 2), in: raw) {
+                    let k = String(raw[kRange])
+                    let vStr = String(raw[vRange])
+                    if k != "name" {
+                        if let i = Int(vStr) { argsDict[k] = i }
+                        else if let d = Double(vStr) { argsDict[k] = d }
+                    }
+                }
+            }
+        }
+
+        // Extract primary string parameter ("query", "command", "url", "path", "code", "content")
+        for key in ["query", "command", "url", "path", "code", "content", "title", "prompt"] {
+            let keyToken = "\"\(key)\""
+            if let keyRange = raw.range(of: keyToken) {
+                var afterKey = raw[keyRange.upperBound...]
+                while let first = afterKey.first, first == " " || first == "\t" || first == ":" {
+                    afterKey.removeFirst()
+                }
+                if afterKey.first == "\"" {
+                    afterKey.removeFirst()
+                    // Find the end of this field (before `}` or `,"nextKey":`)
+                    var valueSlice = String(afterKey)
+                    if let closingBraces = valueSlice.range(of: #""\s*\}\s*\}"#, options: .regularExpression) {
+                        valueSlice = String(valueSlice[..<closingBraces.lowerBound])
+                    } else if let nextField = valueSlice.range(of: #""\s*,\s*"[A-Za-z0-9_]+"\s*:"#, options: .regularExpression) {
+                        valueSlice = String(valueSlice[..<nextField.lowerBound])
+                    } else if let endQuote = valueSlice.lastIndex(of: "\"") {
+                        valueSlice = String(valueSlice[..<endQuote])
+                    }
+                    let cleanedValue = valueSlice.replacingOccurrences(of: "\"", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !cleanedValue.isEmpty {
+                        argsDict[key] = cleanedValue
+                    }
+                }
+            }
+        }
+
+        if let data = try? JSONSerialization.data(withJSONObject: argsDict, options: []),
+           let argsJSON = String(data: data, encoding: .utf8) {
+            return (toolName, argsJSON)
+        }
+        return (toolName, "{}")
     }
 
     // MARK: Internals
@@ -242,8 +381,6 @@ enum TextToolProtocol {
         for marker in allMarkers where !marker.isEmpty {
             var searchStart = range.lowerBound
             while let found = text.range(of: marker, range: searchStart..<text.endIndex) {
-                // The marker must start a line (or follow whitespace) to
-                // avoid matching inside words like "CASTRAL_TOOLX".
                 if found.lowerBound == text.startIndex {
                     let hit = MarkerHit(markerStart: found.lowerBound, jsonStart: found.upperBound)
                     if best == nil || hit.markerStart < best!.markerStart {
@@ -252,7 +389,7 @@ enum TextToolProtocol {
                     break
                 }
                 let previous = text.index(before: found.lowerBound)
-                let boundary = text[previous] == "\n" || text[previous].isWhitespace
+                let boundary = text[previous] == "\n" || text[previous].isWhitespace || text[previous] == "`" || text[previous] == "*"
                 if boundary {
                     let hit = MarkerHit(markerStart: found.lowerBound, jsonStart: found.upperBound)
                     if best == nil || hit.markerStart < best!.markerStart {
@@ -270,8 +407,6 @@ enum TextToolProtocol {
         [marker] + secondaryMarkers
     }
 
-    /// The longest suffix of `text` that is a strict prefix of any marker
-    /// (so it might still grow into one on the next chunk).
     static func markerSuffixLength(of text: String) -> Int {
         var longest = 0
         for marker in allMarkers where marker.count > 1 {
@@ -288,37 +423,27 @@ enum TextToolProtocol {
         return longest
     }
 
-    /// Index of the first line-boundary marker whose JSON object has NOT
-    /// finished streaming yet (nil when no open marker). Scans past
-    /// complete calls so long prose without markers stays releasable.
     static func firstUnterminatedMarkerIndex(in text: String) -> String.Index? {
         var searchStart = text.startIndex
         while searchStart < text.endIndex,
               let hit = findNextMarker(in: text, range: searchStart..<text.endIndex) {
             if let (_, end) = extractJSONObject(in: text, from: hit.jsonStart) {
-                // This call is complete - keep scanning after it.
                 searchStart = end
                 continue
             }
-            // Marker open, JSON not closed.
             return hit.markerStart
         }
         return nil
     }
 
-    /// Extracts the first balanced JSON object starting at or after `start`,
-    /// skipping leading whitespace. Returns the decoded object and the index
-    /// just past its closing brace.
     private static func extractJSONObject(
         in text: String,
         from start: String.Index
     ) -> ([String: Any]?, String.Index)? {
         var index = start
-        // Skip whitespace between marker and JSON.
-        while index < text.endIndex, text[index].isWhitespace, text[index] != "\n" {
+        while index < text.endIndex, (text[index].isWhitespace && text[index] != "\n") || text[index] == ":" {
             index = text.index(after: index)
         }
-        // Allow one newline after the marker (multi-line style).
         if index < text.endIndex, text[index] == "\n" {
             index = text.index(after: index)
             while index < text.endIndex, text[index] == " " || text[index] == "\t" {
@@ -338,7 +463,7 @@ enum TextToolProtocol {
             let ch = text[cursor]
             if escaped {
                 escaped = false
-            } else if ch == "\\" , inString {
+            } else if ch == "\\", inString {
                 escaped = true
             } else if ch == "\"" {
                 inString.toggle()
@@ -364,9 +489,6 @@ enum TextToolProtocol {
         return (object, text.index(after: closing))
     }
 
-    /// Decodes a call object: {"name": ..., "arguments": {...}} with the
-    /// usual tolerance (arguments as object or JSON string, "parameters"
-    /// accepted as an alias).
     private static func decodeCall(_ object: [String: Any]) -> (name: String, arguments: String)? {
         let name = (object["name"] as? String)
             ?? ((object["function"] as? [String: Any])?["name"] as? String)

@@ -1,10 +1,12 @@
 import Foundation
 
-// MARK: - ExecTool (Full Root Linux Workstation Shell)
+// MARK: - ExecTool (Full Root Linux Alpha + astra-os Workstation Shell)
 
 /// The astra-os terminal — the agent's primary way of working. Runs any
 /// sandbox shell command inside the persistent `/home/astral` Linux FHS
-/// workspace, or on the cloud Ubuntu microVM when Cloud Mode is enabled.
+/// workspace powered by the integrated Linux Alpha (`install-alpha-minimal-20260426T153103Z.iso`,
+/// Kernel `6.18.52-gentoo-alpha`, SRM `aboot`, SquashFS RootFS) subsystem,
+/// or on the cloud Ubuntu microVM when Cloud Mode is enabled.
 @MainActor
 final class ExecTool: AgentTool {
 
@@ -14,23 +16,26 @@ final class ExecTool: AgentTool {
         ToolSpec(
             name: name,
             description:
-                "Run a bash/shell command inside the astra-os Linux workstation environment (root@astra-os:/home/astral on the user's device). "
+                "Run a bash/shell command inside the astra-os Linux Alpha workstation environment (root@astra-os:/home/astral on the user's device, powered by install-alpha-minimal-20260426T153103Z.iso, Kernel 6.18.52-gentoo-alpha, SRM aboot 1.0_pre20260426, and /mnt/cdrom/image.squashfs). "
                 + "FULL SHELL: pipes (cmd | cmd), logical chaining (cmd && cmd || fallback; cmd), redirection (> >>), and environment variables ($VAR / export) all work like a real Linux computer. "
-                + "Available commands (75+): ls, ll, cd, pwd, cat, echo, printf, mkdir (-p), rmdir, touch, rm (-rf), cp, mv, ln, grep (-i -n -r -v -c), find (-name), wc, head, tail, "
-                + "tree, sed (-i s/pat/repl/g), awk (-F), jq (JSON query & pretty-print), xargs, tee, stat, file, du, date, uname (-a), whoami, id, hostname, neofetch, env, export, unset, "
+                + "Available commands (95+): ls, ll, cd, pwd, cat, echo, printf, mkdir (-p), rmdir, touch, rm (-rf), cp, mv, ln, grep (-i -n -r -v -c), find (-name), wc, head, tail, "
+                + "tree, sed (-i s/pat/repl/g), awk (-F), jq (JSON query & pretty-print), xargs, tee, stat, file, du, date, uname (-a -r -m -v), whoami, id, hostname, neofetch, env, export, unset, "
+                + "dmesg (Linux Alpha 6.18.52 kernel ring buffer), lsmod, modprobe, insmod, rmmod, sysctl (-a -w), aboot (status | list | boot 0..5), rc-status, rc-service, rc-update (OpenRC init), "
+                + "emerge (--info | -s <pkg> | <pkg>), equery, eselect (Gentoo Portage), lsblk, blkid, mount, umount, losetup, unsquashfs (-l | -d <dir> /mnt/cdrom/image.squashfs), isoinfo (-d -i /mnt/cdrom), "
+                + "alpha-iso (status | probe-drive | extract-kernel | mount), readelf (-h /boot/gentoo), objdump, nm, ldd, gcc / alpha-unknown-linux-gnu-gcc, "
                 + "df (-h), free (-m), ps (aux), top, lscpu, nproc, uptime, which, sleep, chmod, chown, basename, dirname, realpath, diff, seq, column (-t), paste, bc, expr, xxd, hexdump, sort (-r -n -u), uniq (-c), cut (-d -f), tr (-d), rev, "
                 + "base64 (-d), md5sum, shasum, sha256sum, history, systemctl, service, crontab, lsof, netstat, ss, apt (update | install | list), git (init | status | add | commit | log | clone), zip, unzip, tar, "
                 + "sqlite3 <db.sqlite> [\"SQL\"] (real SQLite database engine), ffmpeg (synthesize/process real H.264 .mp4 videos in workspace), ffprobe <video> (inspect video streams), yt-dlp [-o file.mp4] <url> (download video to workspace), "
                 + "curl [-X -H -d -I -o] <url> (HTTP client & page reader), wget [-O file] <url> (file downloader), ping <host>, dig <domain>, ifconfig/ip, search <query> (live web search), "
                 + "python3 <file.py> | python3 -c \"code\" (REAL CPython 3.12 via Pyodide with automatic bidirectional workspace file sync), node <file.js> | node -e \"code\" (REAL JavaScript with fs module synced to /home/astral), pip install <package>. "
-                + "Use this Linux workstation proactively to create projects, write and test code, process JSON/CSV/SQLite/video pipelines, scrape web pages, and build deliverables.",
+                + "Use this Linux workstation proactively to inspect the kernel (/boot/gentoo, /etc/aboot.conf, dmesg), create projects, write and test code, process JSON/CSV/SQLite/video pipelines, scrape web pages, and build deliverables.",
             parameters: .object([
                 "type": .string("object"),
                 "properties": .object([
                     "command": .object([
                         "type": .string("string"),
                         "description": .string(
-                            "The Linux shell command line, e.g. 'mkdir -p Projects/App && echo \"# App\" > Projects/App/README.md' or 'sqlite3 data.db \"CREATE TABLE items(id INT, name TEXT); INSERT INTO items VALUES(1, \\\"Astral\\\"); SELECT * FROM items;\"'"),
+                            "The Linux shell command line, e.g. 'dmesg | head -n 20', 'alpha-iso status', 'emerge --info', or 'sqlite3 data.db \"SELECT * FROM items;\"'"),
                     ]),
                 ]),
                 "required": .array([.string("command")]),
@@ -129,4 +134,5 @@ extension Notification.Name {
     /// Posted after any sandbox command that may have changed workspace
     /// files, so the Files tab can refresh.
     static let sandboxDidChange = Notification.Name("astral.sandboxDidChange")
+    static let openLinuxDesktop = Notification.Name("astral.openLinuxDesktop")
 }

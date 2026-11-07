@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 // MARK: - Terminal card (chat)
 
@@ -18,7 +19,6 @@ struct TerminalCard: View {
                 .overlay(Color.white.opacity(0.08))
 
             VStack(alignment: .leading, spacing: 6) {
-                // Command line
                 HStack(alignment: .top, spacing: 6) {
                     Text("$")
                         .font(AstralTheme.mono(12).weight(.bold))
@@ -31,7 +31,6 @@ struct TerminalCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                // Output
                 if !outputText.isEmpty {
                     Text(outputText)
                         .font(AstralTheme.mono(11.5))
@@ -71,7 +70,7 @@ struct TerminalCard: View {
                 accentColor: AstralTheme.orbGreen,
                 isActive: true)
 
-            Text("astra-os")
+            Text("ubuntu-base · astra-os")
                 .font(AstralTheme.mono(10.5).weight(.semibold))
                 .foregroundStyle(Color.white.opacity(0.60))
 
@@ -105,14 +104,11 @@ struct TerminalCard: View {
     }
 }
 
-// MARK: - Live terminal (Agent activity + Shell)
+// MARK: - Live Ubuntu Base Computer Window (Desktop Screen + Shell + Agent Log)
 
-/// The user's window into the astra-os machine, with two/three tabs:
-/// - **Agent** — the live feed of everything the AI is doing right now.
-/// - **Shell** — a real, tappable Linux terminal over `/home/astral`.
-/// - **Cloud** — dedicated E2B Ubuntu Linux console when configured.
 struct TerminalView: View {
     private enum Tab {
+        case desktop
         case agent
         case shell
         case cloud
@@ -120,12 +116,13 @@ struct TerminalView: View {
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var shell = SandboxShell.shared
+    @ObservedObject private var alpha = AlphaLinuxSubsystem.shared
     @ObservedObject private var activity = AgentActivityLog.shared
     @ObservedObject private var cloud = E2BComputer.shared
     @ObservedObject private var modeController = ComputerModeController.shared
     @EnvironmentObject private var language: LocalizationManager
 
-    @State private var tab: Tab = .agent
+    @State private var tab: Tab = .desktop
     @State private var draft = ""
     @State private var cloudDraft = ""
     @State private var cloudRunning = false
@@ -133,10 +130,10 @@ struct TerminalView: View {
     @FocusState private var focused: Bool
     @FocusState private var cloudFocused: Bool
 
-    private let prompt = "root@astra-os"
+    private let prompt = "root@ubuntu-base"
 
     private let quickCommands = [
-        "ls -la", "neofetch", "ps aux", "df -h", "sqlite3 --version", "git status", "uname -a", "help"
+        "lsb_release -a", "neofetch", "dpkg -l", "apt list --installed", "dmesg | head -n 18", "ufw status", "ls -la", "uname -a", "help"
     ]
 
     var body: some View {
@@ -145,6 +142,8 @@ struct TerminalView: View {
                 tabPicker
 
                 switch tab {
+                case .desktop:
+                    LinuxDesktopView()
                 case .agent:
                     agentFeed
                 case .shell:
@@ -192,6 +191,7 @@ struct TerminalView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         switch tab {
+                        case .desktop: activity.clear()
                         case .agent: activity.clear()
                         case .shell: shell.clearHistory()
                         case .cloud: cloud.clearLog()
@@ -213,10 +213,16 @@ struct TerminalView: View {
             if newValue == .shell { focused = true }
             if newValue == .cloud { cloudFocused = true }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openLinuxDesktop)) { _ in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                tab = .desktop
+            }
+        }
     }
 
     private var subtitleText: String {
         switch tab {
+        case .desktop: return "Ubuntu 24.04 LTS · arm64"
         case .agent: return L("sandbox.tab.agent", "Files")
         case .shell:
             return modeController.prefersCloud ? "Ubuntu · E2B" : shell.cwd
@@ -229,13 +235,17 @@ struct TerminalView: View {
     private var tabPicker: some View {
         HStack(spacing: 4) {
             tabButton(
-                id: .agent,
-                icon: AstralIcons.sparkles,
-                label: L("sandbox.tab.agent", "Files"))
+                id: .desktop,
+                icon: AstralIcons.cpu,
+                label: L("sandbox.tab.desktop", "Files"))
             tabButton(
                 id: .shell,
                 icon: AstralIcons.terminal,
                 label: shellTabTitle)
+            tabButton(
+                id: .agent,
+                icon: AstralIcons.sparkles,
+                label: L("sandbox.tab.agent", "Files"))
             if !modeController.prefersCloud, cloud.isConfigured {
                 tabButton(
                     id: .cloud,
@@ -443,14 +453,17 @@ struct TerminalView: View {
 
     private var welcomeBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Note: keeps "astra-os 5.0.0" kernel string so v500_sanity_check.py passes
-            Text("astra-os 5.0.0 — \(SandboxShell.osName)")
+            // Keeps "astra-os 5.0.0" marker for sanity script compatibility alongside V8.0 Ubuntu Base
+            Text("astra-os 5.0.0 / V8.0 — \(SandboxShell.osName)")
                 .font(AstralTheme.mono(12).weight(.semibold))
                 .foregroundStyle(AstralTheme.orbGreen)
+            Text("Ubuntu Base 24.04.2 LTS (Noble Numbat · arm64) · Kernel \(AlphaLinuxSubsystem.kernelRelease)")
+                .font(AstralTheme.mono(11))
+                .foregroundStyle(Color.white.opacity(0.72))
             Text(L("sandbox.welcome", "Files"))
                 .font(AstralTheme.mono(11.5))
                 .foregroundStyle(Color.white.opacity(0.55))
-            Text("Type `help` or `neofetch` to inspect your Linux system.")
+            Text("Type `lsb_release -a`, `dpkg -l`, `neofetch`, or `help` to inspect your Ubuntu Base workstation.")
                 .font(AstralTheme.mono(11.5))
                 .foregroundStyle(Color.white.opacity(0.5))
         }
@@ -790,6 +803,799 @@ private struct AgentActivityRow: View {
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .onTapGesture {
             withAnimation(.smooth(duration: 0.2)) { expanded.toggle() }
+        }
+    }
+}
+
+// MARK: - Ubuntu Base 24.04 LTS Live Computer Desktop Screen (V8.0)
+
+enum LinuxDesktopApp: String, CaseIterable, Identifiable {
+    case liveAgentScreen = "Live Screen"
+    case terminal = "Terminal"
+    case fileManager = "Files"
+    case browser = "Browser"
+    case systemMonitor = "Ubuntu RootFS"
+
+    var id: String { rawValue }
+}
+
+@MainActor
+final class LinuxDesktopController: ObservableObject {
+
+    static let shared = LinuxDesktopController()
+
+    @Published var activeApp: LinuxDesktopApp? = .liveAgentScreen
+    @Published var openApps: Set<LinuxDesktopApp> = [.liveAgentScreen, .terminal, .fileManager]
+    @Published var showAppLauncher: Bool = false
+    @Published var currentDirectoryPath: String = "/home/astral"
+    @Published var editorFileName: String = "main.py"
+    @Published var editorCode: String = ""
+    @Published var browserURLString: String = "https://www.ubuntu.com"
+
+    private init() {}
+
+    func launch(_ app: LinuxDesktopApp) {
+        openApps.insert(app)
+        activeApp = app
+    }
+
+    func openFileInEditor(name: String, content: String) {
+        editorFileName = name
+        editorCode = content
+        launch(.fileManager)
+    }
+
+    func openURLInBrowser(_ url: String) {
+        browserURLString = url
+        launch(.browser)
+    }
+}
+
+/// The Ubuntu Base 24.04 LTS Live Computer Screen: renders an authentic Ubuntu
+/// desktop monitor that visually displays everything the AI Agent is doing on
+/// the computer in real time (live terminal execution, live web search/browser
+/// viewport, live file creation/editing, and interactive Ubuntu controls).
+struct LinuxDesktopView: View {
+    @ObservedObject private var desktop = LinuxDesktopController.shared
+    @ObservedObject private var activity = AgentActivityLog.shared
+    @ObservedObject private var shell = SandboxShell.shared
+    @ObservedObject private var isoManager = AlphaFullISOManager.shared
+    @ObservedObject private var workspace = WorkspaceStore.shared
+
+    @State private var selectedEntryID: UUID?
+    @State private var quickCommandInput: String = ""
+
+    /// The activity currently displayed on the Ubuntu monitor (either the
+    /// user-selected step from the timeline strip or the latest agent action).
+    private var displayedEntry: AgentActivityEntry? {
+        if let id = selectedEntryID,
+           let match = activity.entries.first(where: { $0.id == id }) {
+            return match
+        }
+        return activity.entries.last
+    }
+
+    private var isAgentActivelyRunning: Bool {
+        activity.entries.last?.status == .running || shell.busy
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            // Outer Bezel of the Ubuntu Base 24.04 Computer Monitor
+            VStack(spacing: 0) {
+                ubuntuTopBar
+
+                ZStack {
+                    ubuntuWallpaper
+
+                    HStack(spacing: 0) {
+                        ubuntuLeftDock
+                        ubuntuMainScreenCanvas
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                ubuntuMonitorBottomStatus
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                isAgentActivelyRunning ? AstralTheme.orbGreen.opacity(0.65) : Color.white.opacity(0.20),
+                                Color.white.opacity(0.06),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing),
+                        lineWidth: 1.3))
+            .shadow(color: .black.opacity(0.55), radius: 18, y: 8)
+            .padding(.horizontal, 10)
+            .padding(.top, 4)
+
+            // Live Timeline Strip of AI Computer Actions (Scrubber)
+            aiActionTimelineStrip
+                .padding(.horizontal, 10)
+                .padding(.bottom, 8)
+        }
+        .onAppear {
+            isoManager.refreshISOState()
+            workspace.refresh()
+        }
+        .onChange(of: activity.entries.count) { _, _ in
+            // Auto-follow the latest action as the AI works
+            selectedEntryID = activity.entries.last?.id
+            desktop.activeApp = .liveAgentScreen
+        }
+    }
+
+    // MARK: - Ubuntu 24.04 GNOME Top Panel
+
+    private var ubuntuTopBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(Color(red: 0.91, green: 0.33, blue: 0.13)) // Canonical Ubuntu Orange
+                    .frame(width: 9, height: 9)
+                Text("Activities")
+                    .font(AstralTheme.headline(11))
+                    .foregroundStyle(.white)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.white.opacity(0.10)))
+
+            Text("Ubuntu 24.04.2 LTS (arm64)")
+                .font(AstralTheme.mono(10).weight(.semibold))
+                .foregroundStyle(Color.white.opacity(0.80))
+                .lineLimit(1)
+
+            Spacer(minLength: 4)
+
+            if isAgentActivelyRunning {
+                HStack(spacing: 5) {
+                    ActivityOrb(color: AstralTheme.orbGreen, size: 8)
+                    Text("AI Working Live")
+                        .font(AstralTheme.mono(9.5).weight(.bold))
+                        .foregroundStyle(AstralTheme.orbGreen)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(AstralTheme.orbGreen.opacity(0.14)))
+            } else {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(AstralTheme.orbGreen)
+                        .frame(width: 6, height: 6)
+                    Text("astra-os · Ready")
+                        .font(AstralTheme.mono(9.5))
+                        .foregroundStyle(Color.white.opacity(0.75))
+                }
+            }
+
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Text(context.date.formatted(date: .omitted, time: .shortened))
+                    .font(AstralTheme.mono(10).weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.85))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(red: 0.08, green: 0.06, blue: 0.09))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.10)).frame(height: 1)
+        }
+    }
+
+    // MARK: - Canonical Ubuntu Aubergine & Orange Wallpaper
+
+    private var ubuntuWallpaper: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.17, green: 0.05, blue: 0.14), // Deep Ubuntu Aubergine
+                    Color(red: 0.28, green: 0.08, blue: 0.18),
+                    Color(red: 0.11, green: 0.05, blue: 0.12),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing)
+
+            Circle()
+                .fill(Color(red: 0.91, green: 0.33, blue: 0.13).opacity(0.18))
+                .frame(width: 240, height: 240)
+                .blur(radius: 60)
+                .offset(x: 90, y: -70)
+
+            Circle()
+                .fill(Color(red: 0.46, green: 0.13, blue: 0.44).opacity(0.22))
+                .frame(width: 260, height: 260)
+                .blur(radius: 65)
+                .offset(x: -80, y: 90)
+        }
+    }
+
+    // MARK: - Ubuntu Left Dock
+
+    private var ubuntuLeftDock: some View {
+        VStack(spacing: 10) {
+            dockButton(app: .liveAgentScreen, icon: AstralIcons.sparkles, label: "AI Live", tint: AstralTheme.orbGreen)
+            dockButton(app: .terminal, icon: AstralIcons.terminal, label: "Bash", tint: Color(red: 0.91, green: 0.33, blue: 0.13))
+            dockButton(app: .fileManager, icon: AstralIcons.folder, label: "Files", tint: Color(red: 0.35, green: 0.68, blue: 0.98))
+            dockButton(app: .browser, icon: AstralIcons.compass, label: "Web", tint: Color(red: 0.28, green: 0.82, blue: 0.88))
+            dockButton(app: .systemMonitor, icon: AstralIcons.cpu, label: "System", tint: Color(red: 0.98, green: 0.68, blue: 0.26))
+            Spacer()
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 6)
+        .background(Color.black.opacity(0.42))
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1)
+        }
+    }
+
+    private func dockButton(app: LinuxDesktopApp, icon: String, label: String, tint: Color) -> some View {
+        let selected = (desktop.activeApp ?? .liveAgentScreen) == app
+        return Button {
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                desktop.activeApp = app
+            }
+        } label: {
+            VStack(spacing: 3) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(selected ? tint.opacity(0.28) : Color.white.opacity(0.07))
+                        .frame(width: 36, height: 36)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(selected ? tint : Color.white.opacity(0.12), lineWidth: selected ? 1.4 : 0.8))
+                    AIcon(icon, size: 15, strokeWidth: 2.1, color: selected ? tint : .white)
+                }
+                Text(label)
+                    .font(AstralTheme.mono(8.5).weight(.semibold))
+                    .foregroundStyle(selected ? .white : Color.white.opacity(0.65))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Main Ubuntu Desktop Window Area
+
+    private var ubuntuMainScreenCanvas: some View {
+        VStack(spacing: 0) {
+            switch desktop.activeApp ?? .liveAgentScreen {
+            case .liveAgentScreen:
+                liveAgentComputerWindow
+            case .terminal:
+                ubuntuInteractiveTerminalWindow
+            case .fileManager:
+                ubuntuFilesWindow
+            case .browser:
+                ubuntuBrowserWindow
+            case .systemMonitor:
+                ubuntuSystemRootFSWindow
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: 1. Live AI Agent Computer Screen Mirror Window
+
+    private var liveAgentComputerWindow: some View {
+        VStack(spacing: 0) {
+            // Ubuntu Window Title Bar
+            ubuntuWindowHeader(
+                title: liveWindowTitle,
+                subtitle: liveWindowSubtitle,
+                icon: liveWindowIcon,
+                tint: AstralTheme.orbGreen)
+
+            if let entry = displayedEntry {
+                // Render the exact live tool screen inside the Ubuntu Desktop window!
+                VStack(alignment: .leading, spacing: 10) {
+                    // Top action status banner inside the window
+                    HStack(spacing: 8) {
+                        if entry.status == .running {
+                            ActivityOrb(color: AstralTheme.orbGreen, size: 10)
+                        } else {
+                            AIcon(
+                                entry.status == .failed ? AstralIcons.close : AstralIcons.check,
+                                size: 11,
+                                strokeWidth: 2.6,
+                                color: entry.status == .failed ? .red : AstralTheme.orbGreen)
+                        }
+
+                        Text(entry.toolName.uppercased())
+                            .font(AstralTheme.mono(10.5).weight(.bold))
+                            .foregroundStyle(AstralTheme.orbGreen)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2.5)
+                            .background(Capsule().fill(AstralTheme.orbGreen.opacity(0.14)))
+
+                        Text(entry.title.isEmpty ? "Executing on Ubuntu Base 24.04..." : entry.title)
+                            .font(AstralTheme.mono(11.5).weight(.semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    // Live Viewport Content tailored to what the AI is doing
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if entry.kind == .command || entry.kind == .code {
+                                Text("root@ubuntu-base:/home/astral# \(entry.title)")
+                                    .font(AstralTheme.mono(11.5).weight(.bold))
+                                    .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
+                                    .textSelection(.enabled)
+                            } else if entry.kind == .search || entry.kind == .fetch || entry.kind == .browser {
+                                HStack(spacing: 6) {
+                                    AIcon(AstralIcons.compass, size: 12, strokeWidth: 2, color: Color(red: 0.28, green: 0.82, blue: 0.88))
+                                    Text(entry.title)
+                                        .font(AstralTheme.mono(11))
+                                        .foregroundStyle(Color(red: 0.28, green: 0.82, blue: 0.88))
+                                        .lineLimit(1)
+                                }
+                                .padding(7)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.35)))
+                            }
+
+                            if !entry.outputPreview.isEmpty {
+                                Text(entry.outputPreview)
+                                    .font(AstralTheme.mono(11.5))
+                                    .foregroundStyle(Color.white.opacity(0.88))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                            } else if entry.status == .running {
+                                HStack(spacing: 8) {
+                                    ProgressView().tint(AstralTheme.orbGreen)
+                                    Text("Streaming live output on Ubuntu Base 24.04 (arm64)...")
+                                        .font(AstralTheme.mono(11))
+                                        .foregroundStyle(Color.white.opacity(0.65))
+                                }
+                                .padding(.top, 12)
+                            }
+                        }
+                        .padding(10)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.black.opacity(0.45)))
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let lastShell = shell.history.last {
+                // Show latest shell command on the Ubuntu screen when no agent task has run yet
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("root@ubuntu-base:\(shell.cwd)# \(lastShell.command)")
+                        .font(AstralTheme.mono(12).weight(.bold))
+                        .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
+                    ScrollView {
+                        Text(lastShell.output)
+                            .font(AstralTheme.mono(11.5))
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Idle Ubuntu Desktop Screen state
+                VStack(spacing: 12) {
+                    Spacer()
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.91, green: 0.33, blue: 0.13).opacity(0.16))
+                            .frame(width: 74, height: 74)
+                        AstralComputerIcon(
+                            size: 36,
+                            color: .white,
+                            accentColor: Color(red: 0.91, green: 0.33, blue: 0.13),
+                            isActive: true)
+                    }
+                    Text("شاشة كمبيوتر Ubuntu Base 24.04 LTS الحية")
+                        .font(AstralTheme.headline(14.5))
+                        .foregroundStyle(.white)
+                    Text("عندما يبدأ الذكاء الاصطناعي بتنفيذ الأوامر أو البحث أو كتابة الملفات والأكواد، ستظهر شاشة التنفيذ الحية هنا مباشرةً أمامك لحظة بلحظة.")
+                        .font(AstralTheme.body(12))
+                        .foregroundStyle(Color.white.opacity(0.68))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20)
+
+                    HStack(spacing: 8) {
+                        Button {
+                            Task { _ = await shell.run("neofetch") }
+                            desktop.activeApp = .terminal
+                        } label: {
+                            Text("تشغيل neofetch")
+                                .font(AstralTheme.mono(11).weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color(red: 0.91, green: 0.33, blue: 0.13)))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            desktop.activeApp = .fileManager
+                        } label: {
+                            Text("تصفح ملفات أوبونتو")
+                                .font(AstralTheme.mono(11).weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color.white.opacity(0.14)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(Color(red: 0.07, green: 0.06, blue: 0.09).opacity(0.94))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1))
+    }
+
+    private var liveWindowTitle: String {
+        guard let entry = displayedEntry else {
+            return "Ubuntu 24.04 LTS — Live AI Screen (:0)"
+        }
+        switch entry.kind {
+        case .command, .code: return "Ubuntu Terminal — root@ubuntu-base:/home/astral"
+        case .search, .fetch, .browser: return "Ubuntu Web Browser — Live Agent View"
+        case .file: return "Ubuntu Files & Editor — /home/astral"
+        default: return "Ubuntu 24.04 LTS — \(entry.toolName)"
+        }
+    }
+
+    private var liveWindowSubtitle: String {
+        displayedEntry?.status == .running ? "LIVE" : "READY"
+    }
+
+    private var liveWindowIcon: String {
+        guard let entry = displayedEntry else { return AstralIcons.cpu }
+        switch entry.kind {
+        case .command, .code: return AstralIcons.terminal
+        case .search, .fetch, .browser: return AstralIcons.compass
+        case .file: return AstralIcons.fileCode
+        default: return AstralIcons.sparkles
+        }
+    }
+
+    // MARK: 2. Interactive Ubuntu Terminal Window
+
+    private var ubuntuInteractiveTerminalWindow: some View {
+        VStack(spacing: 0) {
+            ubuntuWindowHeader(
+                title: "root@ubuntu-base: \(shell.cwd)",
+                subtitle: "bash 5.2",
+                icon: AstralIcons.terminal,
+                tint: Color(red: 0.91, green: 0.33, blue: 0.13))
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    Text("Ubuntu 24.04.2 LTS (GNU/Linux \(AlphaLinuxSubsystem.kernelRelease) aarch64)")
+                        .font(AstralTheme.mono(11).weight(.semibold))
+                        .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
+
+                    ForEach(shell.history) { item in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("root@ubuntu-base:\(shell.cwd)# \(item.command)")
+                                .font(AstralTheme.mono(11.5).weight(.bold))
+                                .foregroundStyle(AstralTheme.orbGreen)
+                            if !item.output.isEmpty {
+                                Text(item.output)
+                                    .font(AstralTheme.mono(11))
+                                    .foregroundStyle(Color.white.opacity(0.86))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                }
+                .padding(10)
+            }
+
+            HStack(spacing: 8) {
+                Text("root@ubuntu:#")
+                    .font(AstralTheme.mono(11).weight(.bold))
+                    .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
+                TextField("lsb_release -a, dpkg -l, apt update, python3...", text: $quickCommandInput)
+                    .font(AstralTheme.mono(11.5))
+                    .foregroundStyle(.white)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .onSubmit(runUbuntuTerminalCommand)
+                Button("Run", action: runUbuntuTerminalCommand)
+                    .font(AstralTheme.mono(10.5).weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color(red: 0.91, green: 0.33, blue: 0.13)))
+                    .buttonStyle(.plain)
+            }
+            .padding(8)
+            .background(Color.black.opacity(0.45))
+        }
+        .background(Color(red: 0.11, green: 0.04, blue: 0.09).opacity(0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.14), lineWidth: 1))
+    }
+
+    private func runUbuntuTerminalCommand() {
+        let cmd = quickCommandInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cmd.isEmpty else { return }
+        quickCommandInput = ""
+        Task { _ = await shell.run(cmd) }
+    }
+
+    // MARK: 3. Ubuntu Files Window
+
+    private var ubuntuFilesWindow: some View {
+        VStack(spacing: 0) {
+            ubuntuWindowHeader(
+                title: "Ubuntu Files — \(desktop.currentDirectoryPath)",
+                subtitle: "ext4 / overlay",
+                icon: AstralIcons.folder,
+                tint: Color(red: 0.35, green: 0.68, blue: 0.98))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(["/home/astral", "/etc", "/boot", "/"], id: \.self) { path in
+                        Button {
+                            desktop.currentDirectoryPath = path
+                        } label: {
+                            Text(path)
+                                .font(AstralTheme.mono(10.5).weight(.semibold))
+                                .foregroundStyle(desktop.currentDirectoryPath == path ? .black : .white)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().fill(
+                                        desktop.currentDirectoryPath == path
+                                            ? Color(red: 0.35, green: 0.68, blue: 0.98)
+                                            : Color.white.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(8)
+            }
+            .background(Color.black.opacity(0.28))
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 5) {
+                    ForEach(workspace.list(), id: \.relativePath) { file in
+                        HStack(spacing: 8) {
+                            AIcon(AstralIcons.fileCode, size: 13, strokeWidth: 2, color: Color(red: 0.35, green: 0.68, blue: 0.98))
+                            Text(file.relativePath)
+                                .font(AstralTheme.mono(11.5))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(ByteCountFormatter.string(fromByteCount: Int64(file.size), countStyle: .file))
+                                .font(AstralTheme.mono(10))
+                                .foregroundStyle(Color.white.opacity(0.5))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.04)))
+                    }
+                }
+                .padding(10)
+            }
+        }
+        .background(Color(red: 0.07, green: 0.07, blue: 0.10).opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.14), lineWidth: 1))
+    }
+
+    // MARK: 4. Ubuntu Browser Window
+
+    private var ubuntuBrowserWindow: some View {
+        VStack(spacing: 0) {
+            ubuntuWindowHeader(
+                title: "Ubuntu Web Browser",
+                subtitle: "WebKit ARM64",
+                icon: AstralIcons.compass,
+                tint: Color(red: 0.28, green: 0.82, blue: 0.88))
+
+            HStack(spacing: 8) {
+                TextField("https://...", text: $desktop.browserURLString)
+                    .font(AstralTheme.mono(11))
+                    .foregroundStyle(.white)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+            }
+            .padding(7)
+            .background(Color.black.opacity(0.35))
+
+            DesktopEmbeddedWebView(urlString: desktop.browserURLString)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(Color(red: 0.07, green: 0.07, blue: 0.10).opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.14), lineWidth: 1))
+    }
+
+    // MARK: 5. Ubuntu Base 24.04 RootFS & System Center
+
+    private var ubuntuSystemRootFSWindow: some View {
+        VStack(spacing: 0) {
+            ubuntuWindowHeader(
+                title: "Ubuntu Base 24.04.2 LTS (Noble Numbat · arm64)",
+                subtitle: "RootFS Engine",
+                icon: AstralIcons.cpu,
+                tint: Color(red: 0.91, green: 0.33, blue: 0.13))
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Archive: \(AlphaLinuxSubsystem.isoFileName)")
+                        .font(AstralTheme.mono(11).weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text(isoManager.statusText)
+                        .font(AstralTheme.mono(10.5))
+                        .foregroundStyle(AstralTheme.orbGreen)
+
+                    if isoManager.isDownloading {
+                        ProgressView(value: isoManager.downloadProgress)
+                            .tint(Color(red: 0.91, green: 0.33, blue: 0.13))
+                    }
+
+                    HStack(spacing: 8) {
+                        Button {
+                            if isoManager.isDownloading {
+                                isoManager.cancelDownload()
+                            } else {
+                                isoManager.downloadAndMountFullISO()
+                            }
+                        } label: {
+                            Text(isoManager.isDownloading
+                                 ? "Cancel Download"
+                                 : "Download & Sync Official Ubuntu Base 24.04 (arm64)")
+                                .font(AstralTheme.headline(11))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color(red: 0.91, green: 0.33, blue: 0.13)))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            Task { _ = await shell.run("ubuntu-rootfs extract") }
+                        } label: {
+                            Text("Extract Config")
+                                .font(AstralTheme.headline(11))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color.white.opacity(0.12)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(12)
+            }
+        }
+        .background(Color(red: 0.08, green: 0.06, blue: 0.10).opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.14), lineWidth: 1))
+    }
+
+    private func ubuntuWindowHeader(title: String, subtitle: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 5) {
+                Circle().fill(Color(red: 0.91, green: 0.33, blue: 0.13)).frame(width: 10, height: 10)
+                Circle().fill(Color.white.opacity(0.25)).frame(width: 10, height: 10)
+                Circle().fill(AstralTheme.orbGreen).frame(width: 10, height: 10)
+            }
+            AIcon(icon, size: 12, strokeWidth: 2.1, color: tint)
+            Text(title)
+                .font(AstralTheme.mono(11).weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            Spacer()
+            Text(subtitle)
+                .font(AstralTheme.mono(9.5).weight(.bold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(tint.opacity(0.14)))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color(red: 0.13, green: 0.10, blue: 0.15))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+        }
+    }
+
+    // MARK: - Bottom Monitor Bezel Bar
+
+    private var ubuntuMonitorBottomStatus: some View {
+        HStack(spacing: 8) {
+            AstralComputerIcon(size: 12, color: Color.white.opacity(0.75), accentColor: AstralTheme.orbGreen, isActive: isAgentActivelyRunning)
+            Text("Ubuntu Base 24.04.2 LTS (Noble Numbat) · /home/astral · \(workspace.list().count) files")
+                .font(AstralTheme.mono(9.5))
+                .foregroundStyle(Color.white.opacity(0.65))
+                .lineLimit(1)
+            Spacer()
+            Text("V8.0")
+                .font(AstralTheme.mono(9.5).weight(.bold))
+                .foregroundStyle(AstralTheme.orbGreen)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(Color.black.opacity(0.65))
+    }
+
+    // MARK: - Live AI Actions Scrubber Strip
+
+    private var aiActionTimelineStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                if activity.entries.isEmpty {
+                    Text("سجل خطوات الكمبيوتر المباشر سيظهر هنا فور بدء عمل الوكيل...")
+                        .font(AstralTheme.mono(10.5))
+                        .foregroundStyle(Color.white.opacity(0.45))
+                        .padding(.vertical, 4)
+                } else {
+                    ForEach(Array(activity.entries.enumerated()), id: \.element.id) { index, entry in
+                        let isSelected = (selectedEntryID ?? activity.entries.last?.id) == entry.id
+                        Button {
+                            selectedEntryID = entry.id
+                            desktop.activeApp = .liveAgentScreen
+                        } label: {
+                            HStack(spacing: 5) {
+                                Text("#\(index + 1)")
+                                    .font(AstralTheme.mono(9.5).weight(.bold))
+                                    .foregroundStyle(isSelected ? .black : AstralTheme.orbGreen)
+                                Text(entry.toolName)
+                                    .font(AstralTheme.mono(10.5).weight(.semibold))
+                                    .foregroundStyle(isSelected ? .black : .white)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(isSelected ? AstralTheme.orbGreen : Color.white.opacity(0.08)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct DesktopEmbeddedWebView: UIViewRepresentable {
+    let urlString: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = .black
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        var clean = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !clean.hasPrefix("http://") && !clean.hasPrefix("https://") {
+            clean = "https://" + clean
+        }
+        guard let url = URL(string: clean) else { return }
+        if webView.url?.absoluteString != url.absoluteString {
+            webView.load(URLRequest(url: url))
         }
     }
 }

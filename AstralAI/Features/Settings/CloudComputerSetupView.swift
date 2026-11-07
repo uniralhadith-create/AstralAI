@@ -1,20 +1,20 @@
 import SwiftUI
 
-// MARK: - Cloud computer setup
+// MARK: - Local Ubuntu Base 24.04 ARM64 & Cloud Ubuntu Computer Setup (V8.0)
 
-/// The computer control room: switch the whole app between the on-device
-/// astra-os machine and the REAL Ubuntu cloud computer (E2B), enter an
-/// API key, and live-test the boot.
 struct CloudComputerSetupView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject private var mode = ComputerModeController.shared
     @ObservedObject private var cloud = E2BComputer.shared
+    @ObservedObject private var alpha = AlphaLinuxSubsystem.shared
+    @ObservedObject private var isoManager = AlphaFullISOManager.shared
 
     @State private var keyText = ""
     @State private var testing = false
     @State private var testResult: String?
     @State private var testFailed = false
+    @State private var ubuntuActionMessage: String?
 
     private var trimmedKey: String {
         keyText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,6 +24,7 @@ struct CloudComputerSetupView: View {
         ScrollView {
             VStack(spacing: AstralTheme.Spacings.m) {
                 computerModeSection
+                ubuntuBaseKernelSection
                 apiKeySection
                 testSection
             }
@@ -45,6 +46,7 @@ struct CloudComputerSetupView: View {
             keyText = cloud.usesCustomKey
                 ? (cloud.apiKey ?? "")
                 : ""
+            isoManager.refreshISOState()
         }
     }
 
@@ -76,7 +78,7 @@ struct CloudComputerSetupView: View {
             HStack(spacing: 10) {
                 modeCard(
                     title: L("settings.modeLocal", "Settings"),
-                    caption: "astra-os · iPhone",
+                    caption: "Ubuntu Base 24.04 · iPhone",
                     icon: AstralIcons.cpu,
                     selected: mode.mode == .local) {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -101,6 +103,112 @@ struct CloudComputerSetupView: View {
         }
         .padding(AstralTheme.Spacings.m)
         .glassCard(cornerRadius: 22, depth: .panel)
+    }
+
+    // MARK: Official Ubuntu Base 24.04.2 LTS (Noble Numbat · ARM64) Control Card
+
+    private var ubuntuBaseKernelSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                AIcon(
+                    AstralIcons.terminal,
+                    size: 16,
+                    strokeWidth: 2.1,
+                    color: Color(red: 0.91, green: 0.33, blue: 0.13))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ubuntu Base 24.04.2 LTS (Noble Numbat · arm64)")
+                        .font(AstralTheme.headline(14.5))
+                        .foregroundStyle(AstralTheme.textPrimary)
+                    Text(AlphaLinuxSubsystem.isoFileName)
+                        .font(AstralTheme.mono(10.5))
+                        .foregroundStyle(AstralTheme.textSecondary)
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                kernelDetailRow(label: "Distro", value: "Ubuntu 24.04.2 LTS (Noble Numbat)")
+                kernelDetailRow(label: "Arch", value: "arm64 / aarch64-linux-gnu (Native)")
+                kernelDetailRow(label: "Kernel", value: AlphaLinuxSubsystem.kernelRelease)
+                kernelDetailRow(label: "Packages", value: "APT 2.7.14 · dpkg 1.22.6 · Python 3.12 · Node 20")
+                kernelDetailRow(label: "Status", value: isoManager.statusText)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AstralTheme.actionFill.opacity(0.04)))
+
+            if isoManager.isDownloading {
+                ProgressView(value: isoManager.downloadProgress)
+                    .tint(Color(red: 0.91, green: 0.33, blue: 0.13))
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    if isoManager.isDownloading {
+                        isoManager.cancelDownload()
+                    } else {
+                        isoManager.downloadAndMountFullISO()
+                        ubuntuActionMessage = "Streaming official Ubuntu Base 24.04.2 LTS (arm64) from cdimage.ubuntu.com..."
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isoManager.isDownloading {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            AIcon(AstralIcons.checkCircle, size: 13, strokeWidth: 2.1, color: AstralTheme.orbGreen)
+                        }
+                        Text(isoManager.isDownloading ? "Cancel" : "Sync Ubuntu Base 24.04")
+                            .font(AstralTheme.headline(12))
+                            .foregroundStyle(AstralTheme.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .liquidGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous), interactive: true)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    Task {
+                        let res = await SandboxShell.shared.run("ubuntu-rootfs extract")
+                        ubuntuActionMessage = res.stdout.components(separatedBy: .newlines).first ?? "Extracted Ubuntu Base config"
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        AIcon(AstralIcons.fileCode, size: 13, strokeWidth: 2.1, color: AstralTheme.textPrimary)
+                        Text("Extract to Files")
+                            .font(AstralTheme.headline(12))
+                            .foregroundStyle(AstralTheme.textPrimary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .liquidGlass(in: RoundedRectangle(cornerRadius: 12, style: .continuous), interactive: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let ubuntuActionMessage {
+                Text(ubuntuActionMessage)
+                    .font(AstralTheme.mono(10.5))
+                    .foregroundStyle(AstralTheme.orbGreen)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(AstralTheme.Spacings.m)
+        .glassCard(cornerRadius: 22, depth: .panel)
+    }
+
+    private func kernelDetailRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(AstralTheme.mono(10.5).weight(.semibold))
+                .foregroundStyle(AstralTheme.moonDust)
+                .frame(width: 76, alignment: .leading)
+            Text(value)
+                .font(AstralTheme.mono(10.5))
+                .foregroundStyle(AstralTheme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func modeCard(

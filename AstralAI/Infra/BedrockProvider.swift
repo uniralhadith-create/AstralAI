@@ -524,6 +524,8 @@ struct BedrockClient {
                     var toolParts: [Int: (id: String, name: String, arguments: String)] = [:]
                     var finishReason: String?
                     var emittedAnything = false
+                    var rawStreamText = ""
+                    var textFilter = TextToolProtocol.StreamFilter()
 
                     for try await chunk in bytes {
                         if Task.isCancelled { break }
@@ -558,7 +560,11 @@ struct BedrockClient {
                                 if let delta = payload["delta"] as? [String: Any] {
                                     if let text = delta["text"] as? String, !text.isEmpty {
                                         emittedAnything = true
-                                        continuation.yield(.textDelta(text))
+                                        rawStreamText += text
+                                        let safe = textFilter.feed(text)
+                                        if !safe.isEmpty {
+                                            continuation.yield(.textDelta(safe))
+                                        }
                                     }
                                     if let toolUse = delta["toolUse"] as? [String: Any],
                                        let input = toolUse["input"] as? String,
@@ -590,8 +596,20 @@ struct BedrockClient {
                                 name: part.name,
                                 arguments: part.arguments.isEmpty ? "{}" : part.arguments)
                         }
+                    let tail = textFilter.flush()
+                    if !tail.isEmpty {
+                        continuation.yield(.textDelta(tail))
+                    }
                     if !calls.isEmpty {
                         continuation.yield(.toolCalls(calls))
+                    } else {
+                        let textCalls = TextToolProtocol.parseCalls(in: rawStreamText)
+                        let fallbackCalls = textCalls.enumerated().map { idx, c in
+                            ToolCall(id: "bedrock_txt_\(idx)", name: c.name, arguments: c.argumentsJSON)
+                        }
+                        if !fallbackCalls.isEmpty {
+                            continuation.yield(.toolCalls(fallbackCalls))
+                        }
                     }
 
                     _ = emittedAnything

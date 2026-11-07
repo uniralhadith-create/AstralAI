@@ -93,3 +93,10 @@
 "quick.subtitle" = "اكتب مهمة أو سؤالاً — أرسلها وسيستلمها أسترا فوراً.";
 "quick.placeholder" = "اكتب مهمة…";
 "quick.swipeHint" = "اسحب لأسفل للإغلاق";
+
+/* V8.0 — Collapsible Steps & Thinking Drawer (Arabic) */
+"chat.stepsThinking.title" = "عرض الخطوات والتفكير";
+"chat.stepsThinking.hide" = "إخفاء الخطوات والتفكير";
+"chat.stepsThinking.stepsCount" = "%d خطوات";
+"chat.stepsThinking.thinkingHeader" = "التفكير والتحليل";
+"chat.stepsThinking.commandsHeader" = "الأوامر والخطوات المنفذة";

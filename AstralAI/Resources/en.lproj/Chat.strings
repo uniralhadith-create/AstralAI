@@ -93,3 +93,10 @@
 "quick.subtitle" = "Type a task or a question — send it and Astral takes over.";
 "quick.placeholder" = "Type a task…";
 "quick.swipeHint" = "Swipe down to close";
+
+/* V8.0 — Collapsible Steps & Thinking Drawer (English) */
+"chat.stepsThinking.title" = "Show Steps & Thinking";
+"chat.stepsThinking.hide" = "Hide Steps & Thinking";
+"chat.stepsThinking.stepsCount" = "%d steps";
+"chat.stepsThinking.thinkingHeader" = "Thinking Process";
+"chat.stepsThinking.commandsHeader" = "Executed Commands & Actions";
