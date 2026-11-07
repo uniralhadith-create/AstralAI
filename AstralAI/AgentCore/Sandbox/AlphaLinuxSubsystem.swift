@@ -20,9 +20,9 @@ final class AlphaLinuxSubsystem: ObservableObject {
     static let isoSectorSize: Int = 2048
     static let driveFileID = "ubuntu-base-24.04.2-arm64"
     static let driveViewURL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/"
-    static let driveDirectDownloadURL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.1-base-arm64.tar.gz"
-    static let officialMirrorURL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.2-base-arm64.tar.gz"
-    static let fallbackCoreURL = "https://partner-images.canonical.com/core/noble/current/ubuntu-noble-core-cloudimg-arm64-root.tar.gz"
+    static let driveDirectDownloadURL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.4-base-arm64.tar.gz"
+    static let officialMirrorURL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.3-base-arm64.tar.gz"
+    static let fallbackCoreURL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.2-base-arm64.tar.gz"
 
     static let distroName = "Ubuntu 24.04.2 LTS (Noble Numbat)"
     static let kernelRelease = "6.12.0-28-generic-arm64"

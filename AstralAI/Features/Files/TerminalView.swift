@@ -109,6 +109,7 @@ struct TerminalCard: View {
 struct TerminalView: View {
     private enum Tab {
         case desktop
+        case live
         case agent
         case shell
         case cloud
@@ -144,6 +145,8 @@ struct TerminalView: View {
                 switch tab {
                 case .desktop:
                     LinuxDesktopView()
+                case .live:
+                    LiveScreenView()
                 case .agent:
                     agentFeed
                 case .shell:
@@ -192,6 +195,7 @@ struct TerminalView: View {
                     Button {
                         switch tab {
                         case .desktop: activity.clear()
+                        case .live: activity.clear()
                         case .agent: activity.clear()
                         case .shell: shell.clearHistory()
                         case .cloud: cloud.clearLog()
@@ -223,6 +227,7 @@ struct TerminalView: View {
     private var subtitleText: String {
         switch tab {
         case .desktop: return "Ubuntu 24.04 LTS · arm64"
+        case .live: return "AI Live · Ubuntu 24.04"
         case .agent: return L("sandbox.tab.agent", "Files")
         case .shell:
             return modeController.prefersCloud ? "Ubuntu · E2B" : shell.cwd
@@ -238,6 +243,10 @@ struct TerminalView: View {
                 id: .desktop,
                 icon: AstralIcons.cpu,
                 label: L("sandbox.tab.desktop", "Files"))
+            tabButton(
+                id: .live,
+                icon: AstralIcons.eye,
+                label: L("sandbox.tab.live", "Live"))
             tabButton(
                 id: .shell,
                 icon: AstralIcons.terminal,
@@ -809,7 +818,7 @@ private struct AgentActivityRow: View {
 
 // MARK: - Ubuntu Base 24.04 LTS Live Computer Desktop Screen (V8.0)
 
-enum LinuxDesktopApp: String, CaseIterable, Identifiable {
+enum LiveScreenApp: String, CaseIterable, Identifiable {
     case liveAgentScreen = "Live Screen"
     case terminal = "Terminal"
     case fileManager = "Files"
@@ -820,12 +829,12 @@ enum LinuxDesktopApp: String, CaseIterable, Identifiable {
 }
 
 @MainActor
-final class LinuxDesktopController: ObservableObject {
+final class LiveScreenController: ObservableObject {
 
-    static let shared = LinuxDesktopController()
+    static let shared = LiveScreenController()
 
-    @Published var activeApp: LinuxDesktopApp? = .liveAgentScreen
-    @Published var openApps: Set<LinuxDesktopApp> = [.liveAgentScreen, .terminal, .fileManager]
+    @Published var activeApp: LiveScreenApp? = .liveAgentScreen
+    @Published var openApps: Set<LiveScreenApp> = [.liveAgentScreen, .terminal, .fileManager]
     @Published var showAppLauncher: Bool = false
     @Published var currentDirectoryPath: String = "/home/astral"
     @Published var editorFileName: String = "main.py"
@@ -834,7 +843,7 @@ final class LinuxDesktopController: ObservableObject {
 
     private init() {}
 
-    func launch(_ app: LinuxDesktopApp) {
+    func launch(_ app: LiveScreenApp) {
         openApps.insert(app)
         activeApp = app
     }
@@ -855,8 +864,8 @@ final class LinuxDesktopController: ObservableObject {
 /// desktop monitor that visually displays everything the AI Agent is doing on
 /// the computer in real time (live terminal execution, live web search/browser
 /// viewport, live file creation/editing, and interactive Ubuntu controls).
-struct LinuxDesktopView: View {
-    @ObservedObject private var desktop = LinuxDesktopController.shared
+struct LiveScreenView: View {
+    @ObservedObject private var desktop = LiveScreenController.shared
     @ObservedObject private var activity = AgentActivityLog.shared
     @ObservedObject private var shell = SandboxShell.shared
     @ObservedObject private var isoManager = AlphaFullISOManager.shared
@@ -1033,7 +1042,7 @@ struct LinuxDesktopView: View {
         }
     }
 
-    private func dockButton(app: LinuxDesktopApp, icon: String, label: String, tint: Color) -> some View {
+    private func dockButton(app: LiveScreenApp, icon: String, label: String, tint: Color) -> some View {
         let selected = (desktop.activeApp ?? .liveAgentScreen) == app
         return Button {
             withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {

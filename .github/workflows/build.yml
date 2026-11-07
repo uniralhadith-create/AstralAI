@@ -33,7 +33,9 @@ jobs:
         run: |
           mkdir -p UbuntuBaseStage
           curl -fL --retry 3 --max-time 180 "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.2-base-arm64.tar.gz" -o UbuntuBaseStage/ubuntu-base-24.04.2-base-arm64.tar.gz || \
-            curl -fL --retry 3 --max-time 180 "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.1-base-arm64.tar.gz" -o UbuntuBaseStage/ubuntu-base-24.04.2-base-arm64.tar.gz || true
+            curl -fL --retry 3 --max-time 180 "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.1-base-arm64.tar.gz" -o UbuntuBaseStage/ubuntu-base-24.04.2-base-arm64.tar.gz || \
+            curl -fL --retry 3 --max-time 180 "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.3-base-arm64.tar.gz" -o UbuntuBaseStage/ubuntu-base-24.04.2-base-arm64.tar.gz || \
+            curl -fL --retry 3 --max-time 180 "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.4-base-arm64.tar.gz" -o UbuntuBaseStage/ubuntu-base-24.04.2-base-arm64.tar.gz || true
           ls -lh UbuntuBaseStage/ || true
 
       - name: Select newest Xcode
