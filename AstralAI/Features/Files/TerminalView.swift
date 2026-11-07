@@ -1101,150 +1101,13 @@ struct LiveScreenView: View {
 
             if let entry = displayedEntry {
                 // Render the exact live tool screen inside the Ubuntu Desktop window!
-                VStack(alignment: .leading, spacing: 10) {
-                    // Top action status banner inside the window
-                    HStack(spacing: 8) {
-                        if entry.status == .running {
-                            ActivityOrb(color: AstralTheme.orbGreen, size: 10)
-                        } else {
-                            AIcon(
-                                entry.status == .failed ? AstralIcons.close : AstralIcons.check,
-                                size: 11,
-                                strokeWidth: 2.6,
-                                color: entry.status == .failed ? .red : AstralTheme.orbGreen)
-                        }
-
-                        Text(entry.toolName.uppercased())
-                            .font(AstralTheme.mono(10.5).weight(.bold))
-                            .foregroundStyle(AstralTheme.orbGreen)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2.5)
-                            .background(Capsule().fill(AstralTheme.orbGreen.opacity(0.14)))
-
-                        Text(entry.title.isEmpty ? "Executing on Ubuntu Base 24.04..." : entry.title)
-                            .font(AstralTheme.mono(11.5).weight(.semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-
-                        Spacer()
-                    }
-                    .padding(10)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    // Live Viewport Content tailored to what the AI is doing
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if entry.kind == .command || entry.kind == .code {
-                                Text("root@ubuntu-base:/home/astral# \(entry.title)")
-                                    .font(AstralTheme.mono(11.5).weight(.bold))
-                                    .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
-                                    .textSelection(.enabled)
-                            } else if entry.kind == .search || entry.kind == .fetch || entry.kind == .browser {
-                                HStack(spacing: 6) {
-                                    AIcon(AstralIcons.compass, size: 12, strokeWidth: 2, color: Color(red: 0.28, green: 0.82, blue: 0.88))
-                                    Text(entry.title)
-                                        .font(AstralTheme.mono(11))
-                                        .foregroundStyle(Color(red: 0.28, green: 0.82, blue: 0.88))
-                                        .lineLimit(1)
-                                }
-                                .padding(7)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.35)))
-                            }
-
-                            if !entry.outputPreview.isEmpty {
-                                Text(entry.outputPreview)
-                                    .font(AstralTheme.mono(11.5))
-                                    .foregroundStyle(Color.white.opacity(0.88))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .textSelection(.enabled)
-                            } else if entry.status == .running {
-                                HStack(spacing: 8) {
-                                    ProgressView().tint(AstralTheme.orbGreen)
-                                    Text("Streaming live output on Ubuntu Base 24.04 (arm64)...")
-                                        .font(AstralTheme.mono(11))
-                                        .foregroundStyle(Color.white.opacity(0.65))
-                                }
-                                .padding(.top, 12)
-                            }
-                        }
-                        .padding(10)
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.45)))
-                }
-                .padding(10)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                liveAgentTaskWindow(for: entry)
             } else if let lastShell = shell.history.last {
                 // Show latest shell command on the Ubuntu screen when no agent task has run yet
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("root@ubuntu-base:\(shell.cwd)# \(lastShell.command)")
-                        .font(AstralTheme.mono(12).weight(.bold))
-                        .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
-                    ScrollView {
-                        Text(lastShell.output)
-                            .font(AstralTheme.mono(11.5))
-                            .foregroundStyle(Color.white.opacity(0.85))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                liveShellFallbackWindow(for: lastShell)
             } else {
                 // Idle Ubuntu Desktop Screen state
-                VStack(spacing: 12) {
-                    Spacer()
-                    ZStack {
-                        Circle()
-                            .fill(Color(red: 0.91, green: 0.33, blue: 0.13).opacity(0.16))
-                            .frame(width: 74, height: 74)
-                        AstralComputerIcon(
-                            size: 36,
-                            color: .white,
-                            accentColor: Color(red: 0.91, green: 0.33, blue: 0.13),
-                            isActive: true)
-                    }
-                    Text("شاشة كمبيوتر Ubuntu Base 24.04 LTS الحية")
-                        .font(AstralTheme.headline(14.5))
-                        .foregroundStyle(.white)
-                    Text("عندما يبدأ الذكاء الاصطناعي بتنفيذ الأوامر أو البحث أو كتابة الملفات والأكواد، ستظهر شاشة التنفيذ الحية هنا مباشرةً أمامك لحظة بلحظة.")
-                        .font(AstralTheme.body(12))
-                        .foregroundStyle(Color.white.opacity(0.68))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-
-                    HStack(spacing: 8) {
-                        Button {
-                            Task { _ = await shell.run("neofetch") }
-                            desktop.activeApp = .terminal
-                        } label: {
-                            Text("تشغيل neofetch")
-                                .font(AstralTheme.mono(11).weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(Color(red: 0.91, green: 0.33, blue: 0.13)))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            desktop.activeApp = .fileManager
-                        } label: {
-                            Text("تصفح ملفات أوبونتو")
-                                .font(AstralTheme.mono(11).weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(Color.white.opacity(0.14)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                liveIdleWindow
             }
         }
         .background(Color(red: 0.07, green: 0.06, blue: 0.09).opacity(0.94))
@@ -1252,6 +1115,158 @@ struct LiveScreenView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.white.opacity(0.14), lineWidth: 1))
+    }
+
+    /// Status banner + live viewport tailored to what the agent is doing.
+    private func liveAgentTaskWindow(for entry: AgentActivityEntry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Top action status banner inside the window
+            HStack(spacing: 8) {
+                if entry.status == .running {
+                    ActivityOrb(color: AstralTheme.orbGreen, size: 10)
+                } else {
+                    AIcon(
+                        entry.status == .failed ? AstralIcons.close : AstralIcons.check,
+                        size: 11,
+                        strokeWidth: 2.6,
+                        color: entry.status == .failed ? .red : AstralTheme.orbGreen)
+                }
+
+                Text(entry.toolName.uppercased())
+                    .font(AstralTheme.mono(10.5).weight(.bold))
+                    .foregroundStyle(AstralTheme.orbGreen)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2.5)
+                    .background(Capsule().fill(AstralTheme.orbGreen.opacity(0.14)))
+
+                Text(entry.title.isEmpty ? "Executing on Ubuntu Base 24.04..." : entry.title)
+                    .font(AstralTheme.mono(11.5).weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                Spacer()
+            }
+            .padding(10)
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            // Live Viewport Content tailored to what the AI is doing
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if entry.kind == .command || entry.kind == .code {
+                        Text("root@ubuntu-base:/home/astral# \(entry.title)")
+                            .font(AstralTheme.mono(11.5).weight(.bold))
+                            .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
+                            .textSelection(.enabled)
+                    } else if entry.kind == .search || entry.kind == .fetch || entry.kind == .browser {
+                        HStack(spacing: 6) {
+                            AIcon(AstralIcons.compass, size: 12, strokeWidth: 2, color: Color(red: 0.28, green: 0.82, blue: 0.88))
+                            Text(entry.title)
+                                .font(AstralTheme.mono(11))
+                                .foregroundStyle(Color(red: 0.28, green: 0.82, blue: 0.88))
+                                .lineLimit(1)
+                        }
+                        .padding(7)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.black.opacity(0.35)))
+                    }
+
+                    if !entry.outputPreview.isEmpty {
+                        Text(entry.outputPreview)
+                            .font(AstralTheme.mono(11.5))
+                            .foregroundStyle(Color.white.opacity(0.88))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    } else if entry.status == .running {
+                        HStack(spacing: 8) {
+                            ProgressView().tint(AstralTheme.orbGreen)
+                            Text("Streaming live output on Ubuntu Base 24.04 (arm64)...")
+                                .font(AstralTheme.mono(11))
+                                .foregroundStyle(Color.white.opacity(0.65))
+                        }
+                        .padding(.top, 12)
+                    }
+                }
+                .padding(10)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.black.opacity(0.45)))
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Latest raw shell command on the Ubuntu monitor (no agent task yet).
+    private func liveShellFallbackWindow(for lastShell: SandboxEntry) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("root@ubuntu-base:\(shell.cwd)# \(lastShell.command)")
+                .font(AstralTheme.mono(12).weight(.bold))
+                .foregroundStyle(Color(red: 0.91, green: 0.33, blue: 0.13))
+            ScrollView {
+                Text(lastShell.output)
+                    .font(AstralTheme.mono(11.5))
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Idle Ubuntu monitor state with quick actions.
+    private var liveIdleWindow: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.91, green: 0.33, blue: 0.13).opacity(0.16))
+                    .frame(width: 74, height: 74)
+                AstralComputerIcon(
+                    size: 36,
+                    color: .white,
+                    accentColor: Color(red: 0.91, green: 0.33, blue: 0.13),
+                    isActive: true)
+            }
+            Text("شاشة كمبيوتر Ubuntu Base 24.04 LTS الحية")
+                .font(AstralTheme.headline(14.5))
+                .foregroundStyle(.white)
+            Text("عندما يبدأ الذكاء الاصطناعي بتنفيذ الأوامر أو البحث أو كتابة الملفات والأكواد، ستظهر شاشة التنفيذ الحية هنا مباشرةً أمامك لحظة بلحظة.")
+                .font(AstralTheme.body(12))
+                .foregroundStyle(Color.white.opacity(0.68))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+
+            HStack(spacing: 8) {
+                Button {
+                    Task { _ = await shell.run("neofetch") }
+                    desktop.activeApp = .terminal
+                } label: {
+                    Text("تشغيل neofetch")
+                        .font(AstralTheme.mono(11).weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color(red: 0.91, green: 0.33, blue: 0.13)))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    desktop.activeApp = .fileManager
+                } label: {
+                    Text("تصفح ملفات أوبونتو")
+                        .font(AstralTheme.mono(11).weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.white.opacity(0.14)))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var liveWindowTitle: String {
