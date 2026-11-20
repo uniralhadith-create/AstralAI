@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 
 // MARK: - Standalone Google Antigravity IDE Section (V8.5.0 — Zero PC Required)
 
@@ -33,6 +34,7 @@ struct AntigravityIDEView: View {
     @State private var selectedPlanHint: AntigravityPlanTier? = nil
     @State private var showAdvancedOAuth: Bool = false
     @State private var customClientIDInput: String = ""
+    @State private var customClientSecretInput: String = ""
 
     // Agent Mission Control state
     @State private var missionPrompt: String = ""
@@ -70,6 +72,13 @@ struct AntigravityIDEView: View {
         .onAppear {
             workspace.refresh()
             customClientIDInput = service.customOAuthClientID
+            customClientSecretInput = service.customOAuthClientSecret
+        }
+        .sheet(item: $service.safariAuthItem, onDismiss: {
+            service.cancelOAuthIfPending()
+        }) { item in
+            SafariAuthSheetView(url: item.url)
+                .ignoresSafeArea()
         }
         .alert(isArabic ? "ملف جديد في مساحة العمل" : "New Workspace File", isPresented: $showNewFileSheet) {
             TextField("Projects/app.py", text: $newFileNameDraft)
@@ -194,9 +203,17 @@ struct AntigravityIDEView: View {
                                 .onChange(of: customClientIDInput) { _, newValue in
                                     service.customOAuthClientID = newValue
                                 }
+                            SecureField("GOCSPX-... (Client Secret)", text: $customClientSecretInput)
+                                .font(AstralTheme.mono(12))
+                                .textFieldStyle(GlassTextFieldStyle())
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .onChange(of: customClientSecretInput) { _, newValue in
+                                    service.customOAuthClientSecret = newValue
+                                }
                             Text(isArabic
-                                 ? "اتركه فارغاً للاستخدام التلقائي، أو أدخل Client ID من Google Cloud للمؤسسات."
-                                 : "Leave blank for default, or enter your Google Cloud Workspace OAuth Client ID.")
+                                 ? "اتركهما فارغين للاستخدام التلقائي عبر Loopback (localhost)، أو أدخل Client ID و Client Secret من Google Cloud."
+                                 : "Leave blank for automatic localhost loopback OAuth, or enter your Google Cloud Desktop Client ID & Secret.")
                                 .font(AstralTheme.body(11))
                                 .foregroundStyle(AstralTheme.moonDust)
                         }
@@ -1127,4 +1144,21 @@ struct AntigravityIDEView: View {
             .padding(.bottom, 16)
         }
     }
+}
+
+// MARK: - Native SFSafariViewController Sheet for RFC 8252 Loopback OAuth
+
+private struct SafariAuthSheetView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let config = SFSafariViewController.Configuration()
+        config.entersReaderIfAvailable = false
+        config.barCollapsingEnabled = false
+        let controller = SFSafariViewController(url: url, configuration: config)
+        controller.dismissButtonStyle = .cancel
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }

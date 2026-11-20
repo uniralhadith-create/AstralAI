@@ -1,16 +1,251 @@
 import Foundation
 import SwiftUI
-import AuthenticationServices
+import Network
 import CryptoKit
 import UIKit
 
+// MARK: - Safari Sheet Wrapper Item
+
+struct AntigravityAuthSheetItem: Identifiable, Equatable {
+    let id = UUID()
+    let url: URL
+}
+
+// MARK: - RFC 8252 Loopback OAuth Server (127.0.0.1 / localhost)
+
+/// Lightweight local HTTP callback server using Apple's `Network` framework
+/// (`NWListener`). Binds to `127.0.0.1` on Google Antigravity's loopback port
+/// (`51121`, falling back to an ephemeral port if busy) so Google OAuth 2.0
+/// redirects to `http://localhost:<port>/oauth-callback` in full compliance
+/// with Google's Desktop/Installed OAuth 2.0 policy (avoiding Error 400
+/// `invalid_request` from disallowed custom URL schemes).
+private final class LoopbackOAuthServer {
+    private let queue = DispatchQueue(label: "com.uniral.astralai.antigravity.loopback")
+    private var listener: NWListener?
+    private var startContinuation: CheckedContinuation<UInt16, Error>?
+    private var callbackContinuation: CheckedContinuation<URL, Error>?
+    private var callbackPath: String = "/oauth-callback"
+    private var isStopped: Bool = false
+
+    func start(preferredPort: UInt16 = 51121, path: String = "/oauth-callback") async throws -> UInt16 {
+        self.callbackPath = path
+        do {
+            return try await startListener(port: NWEndpoint.Port(rawValue: preferredPort))
+        } catch {
+            // Fallback to an OS-assigned ephemeral port if 51121 is already in use
+            return try await startListener(port: .any)
+        }
+    }
+
+    private func startListener(port: NWEndpoint.Port?) async throws -> UInt16 {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                self.stopInternal(cancelCallback: false)
+                self.isStopped = false
+                self.startContinuation = continuation
+
+                let params = NWParameters.tcp
+                params.allowLocalEndpointReuse = true
+                if let port {
+                    params.requiredLocalEndpoint = NWEndpoint.hostPort(
+                        host: .ipv4(.loopback),
+                        port: port)
+                }
+
+                do {
+                    let newListener = try NWListener(using: params)
+                    self.listener = newListener
+
+                    newListener.stateUpdateHandler = { [weak self] state in
+                        guard let self else { return }
+                        switch state {
+                        case .ready:
+                            if let boundPort = newListener.port?.rawValue, boundPort > 0 {
+                                self.finishStart(with: .success(boundPort))
+                            } else {
+                                self.finishStart(with: .failure(LLMError.badResponse("Loopback server bound to port 0")))
+                            }
+                        case .failed(let error):
+                            self.finishStart(with: .failure(error))
+                            self.finishCallback(with: .failure(error))
+                        case .cancelled:
+                            self.finishStart(with: .failure(CancellationError()))
+                        default:
+                            break
+                        }
+                    }
+
+                    newListener.newConnectionHandler = { [weak self] connection in
+                        self?.handle(connection: connection)
+                    }
+
+                    newListener.start(queue: self.queue)
+                } catch {
+                    self.finishStart(with: .failure(error))
+                }
+            }
+        }
+    }
+
+    func waitForCallback() async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                if self.isStopped {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                self.callbackContinuation = continuation
+            }
+        }
+    }
+
+    func stop() {
+        queue.async { [weak self] in
+            self?.stopInternal(cancelCallback: true)
+        }
+    }
+
+    private func stopInternal(cancelCallback: Bool) {
+        isStopped = true
+        listener?.stateUpdateHandler = nil
+        listener?.newConnectionHandler = nil
+        listener?.cancel()
+        listener = nil
+        if cancelCallback {
+            finishStart(with: .failure(CancellationError()))
+            finishCallback(with: .failure(CancellationError()))
+        }
+    }
+
+    private func finishStart(with result: Result<UInt16, Error>) {
+        guard let cont = startContinuation else { return }
+        startContinuation = nil
+        cont.resume(with: result)
+    }
+
+    private func finishCallback(with result: Result<URL, Error>) {
+        guard let cont = callbackContinuation else { return }
+        callbackContinuation = nil
+        cont.resume(with: result)
+    }
+
+    private func handle(connection: NWConnection) {
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, _, _ in
+            guard let self else {
+                connection.cancel()
+                return
+            }
+            guard let data, let requestText = String(data: data, encoding: .utf8),
+                  let firstLine = requestText.components(separatedBy: "\r\n").first else {
+                connection.cancel()
+                return
+            }
+
+            let parts = firstLine.split(separator: " ")
+            guard parts.count >= 2 else {
+                connection.cancel()
+                return
+            }
+
+            let method = String(parts[0]).uppercased()
+            let target = String(parts[1])
+
+            // Ignore browser preflight OPTIONS, favicon probes, or unrelated requests
+            // so the loopback server stays alive until Google's real redirect arrives.
+            if method == "OPTIONS" {
+                self.sendHTTP(on: connection, status: "204 No Content", body: "")
+                return
+            }
+
+            guard let url = URL(string: "http://localhost\(target)"),
+                  url.path == self.callbackPath else {
+                self.sendHTTP(on: connection, status: "404 Not Found", body: "Not Found")
+                return
+            }
+
+            let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let hasCode = queryItems.contains(where: { $0.name == "code" && !($0.value ?? "").isEmpty })
+            let hasError = queryItems.contains(where: { $0.name == "error" && !($0.value ?? "").isEmpty })
+
+            guard hasCode || hasError else {
+                self.sendHTTP(on: connection, status: "204 No Content", body: "")
+                return
+            }
+
+            let html = hasCode
+                ? """
+                <!doctype html>
+                <html lang="ar">
+                <head>
+                  <meta charset="utf-8" />
+                  <meta name="viewport" content="width=device-width,initial-scale=1" />
+                  <title>Astral AI · Google Antigravity</title>
+                  <style>
+                    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+                           background:#0b0d12; color:#eef2f7; font-family:-apple-system,BlinkMacSystemFont,sans-serif; text-align:center; padding:24px; }
+                    .card { max-width:360px; padding:28px 24px; border-radius:22px; background:rgba(255,255,255,0.06);
+                            border:1px solid rgba(255,255,255,0.12); }
+                    .badge { display:inline-block; padding:6px 12px; border-radius:999px; background:rgba(52,211,153,0.16);
+                             color:#34d399; font-weight:700; font-size:13px; margin-bottom:14px; }
+                    h1 { font-size:20px; margin:0 0 8px; }
+                    p { font-size:14px; color:#9aa4b2; margin:0; line-height:1.5; }
+                  </style>
+                </head>
+                <body>
+                  <div class="card">
+                    <div class="badge">✓ Connected</div>
+                    <h1>تم تسجيل الدخول بنجاح</h1>
+                    <p>جارٍ إكمال ربط حسابك مع Google Antigravity IDE داخل Astral AI...</p>
+                  </div>
+                </body>
+                </html>
+                """
+                : """
+                <!doctype html>
+                <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="background:#0b0d12;color:#f87171;font-family:-apple-system,sans-serif;text-align:center;padding:48px 24px;">
+                  <h2>تعذّر إكمال تسجيل الدخول</h2>
+                  <p>يمكنك إغلاق هذه النافذة والعودة إلى Astral AI.</p>
+                </body></html>
+                """
+
+            self.sendHTTP(on: connection, status: "200 OK", contentType: "text/html; charset=utf-8", body: html)
+            self.finishCallback(with: .success(url))
+        }
+    }
+
+    private func sendHTTP(
+        on connection: NWConnection,
+        status: String,
+        contentType: String = "text/plain; charset=utf-8",
+        body: String
+    ) {
+        let bodyData = Data(body.utf8)
+        let header = "HTTP/1.1 \(status)\r\nContent-Type: \(contentType)\r\nContent-Length: \(bodyData.count)\r\nConnection: close\r\n\r\n"
+        var payload = Data(header.utf8)
+        payload.append(bodyData)
+        connection.send(content: payload, completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+}
+
 // MARK: - Google Antigravity IDE Service (PC-Free on iPhone)
 
-/// Owns Google Antigravity authentication (Google OAuth 2.0 PKCE via
-/// `ASWebAuthenticationSession` or Google AI Studio API Key), live model
-/// discovery, automatic plan-tier detection, automatic synchronization into
-/// `ProviderStore`, and PC-free autonomous IDE mission execution directly over
-/// `/home/astral` and `SandboxShell`.
+/// Owns Google Antigravity authentication (RFC 8252 Loopback OAuth 2.0 PKCE via
+/// `NWListener` + `SFSafariViewController`, or Google AI Studio API Key), live
+/// model discovery, automatic plan-tier detection, automatic synchronization
+/// into `ProviderStore`, and PC-free autonomous IDE mission execution directly
+/// over `/home/astral` and `SandboxShell`.
 @MainActor
 final class AntigravityService: NSObject, ObservableObject {
 
@@ -25,6 +260,7 @@ final class AntigravityService: NSObject, ObservableObject {
     @Published var isSyncingModels: Bool = false
     @Published var statusMessage: String?
     @Published var lastError: String?
+    @Published var safariAuthItem: AntigravityAuthSheetItem?
 
     @Published private(set) var missions: [AntigravityMission] = []
     @Published private(set) var isRunningMission: Bool = false
@@ -36,8 +272,9 @@ final class AntigravityService: NSObject, ObservableObject {
     static let googleAuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth"
     static let googleTokenEndpoint = "https://oauth2.googleapis.com/token"
     static let googleUserInfoEndpoint = "https://openidconnect.googleapis.com/v1/userinfo"
-    static let oauthCallbackScheme = "astral"
-    static let oauthRedirectURI = "astral://antigravity-callback"
+    static let defaultAntigravityClientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+    static let loopbackCallbackPath = "/oauth-callback"
+    static let preferredLoopbackPort: UInt16 = 51121
 
     private static let accountDefaultsKey = "astral.antigravity.account.v85"
     private static let missionsDefaultsKey = "astral.antigravity.missions.v85"
@@ -45,8 +282,9 @@ final class AntigravityService: NSObject, ObservableObject {
     private static let thinkingDefaultsKey = "astral.antigravity.thinking.v85"
     private static let oauthClientIDKey = "astral.antigravity.oauthClientID"
     private static let keychainCredentialAccount = "astral.antigravity.credential"
+    private static let keychainClientSecretAccount = "astral.antigravity.oauthClientSecret"
 
-    private var authSession: ASWebAuthenticationSession?
+    private var loopbackServer: LoopbackOAuthServer?
 
     // MARK: - Init
 
@@ -77,6 +315,18 @@ final class AntigravityService: NSObject, ObservableObject {
     var customOAuthClientID: String {
         get { UserDefaults.standard.string(forKey: Self.oauthClientIDKey) ?? "" }
         set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.oauthClientIDKey) }
+    }
+
+    var customOAuthClientSecret: String {
+        get { (try? KeychainStore.get(account: Self.keychainClientSecretAccount)) ?? "" }
+        set {
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                try? KeychainStore.delete(account: Self.keychainClientSecretAccount)
+            } else {
+                try? KeychainStore.save(trimmed, account: Self.keychainClientSecretAccount)
+            }
+        }
     }
 
     // MARK: - 1. Sign in with Google AI Studio Key (Zero-PC, Instant Live Model Auto-Discovery)
@@ -140,13 +390,14 @@ final class AntigravityService: NSObject, ObservableObject {
             max(discovered.count, availableCatalogModels.count))
     }
 
-    // MARK: - 2. Sign in with Google OAuth 2.0 PKCE (`ASWebAuthenticationSession`)
+    // MARK: - 2. Sign in with Google OAuth 2.0 PKCE (RFC 8252 Loopback + SFSafariViewController)
 
-    /// Opens Google's native OAuth 2.0 PKCE sign-in sheet in Safari/iOS
-    /// (`ASWebAuthenticationSession`), captures the callback at
-    /// `astral://antigravity-callback`, exchanges the code for an access token,
-    /// fetches the user's Google profile, discovers their Antigravity plan &
-    /// models, and auto-connects them inside Astral AI without any PC.
+    /// Starts a native `127.0.0.1` loopback HTTP listener (`NWListener`), opens
+    /// Google's OAuth 2.0 PKCE sign-in page inside `SFSafariViewController`
+    /// using `redirect_uri=http://localhost:<port>/oauth-callback` and valid
+    /// Google Cloud / Antigravity scopes, verifies `state`, exchanges the code
+    /// for an access token, fetches the user's Google profile, discovers their
+    /// plan & models, and auto-connects them inside Astral AI without any PC.
     func signInWithGoogleOAuth(
         preferredTier: AntigravityPlanTier? = nil,
         providerStore: ProviderStore
@@ -155,45 +406,75 @@ final class AntigravityService: NSObject, ObservableObject {
         lastError = nil
         statusMessage = L("ag.status.openingGoogle", "Shared")
 
-        let clientID = customOAuthClientID
-        let codeVerifier = Self.generatePKCEVerifier()
-        let codeChallenge = Self.pkceChallenge(for: codeVerifier)
+        let server = LoopbackOAuthServer()
+        loopbackServer = server
 
-        // Build Google OAuth 2.0 authorization URL
-        var components = URLComponents(string: Self.googleAuthEndpoint)
-        let effectiveClientID = clientID.isEmpty
-            ? "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-            : clientID
-
-        components?.queryItems = [
-            URLQueryItem(name: "client_id", value: effectiveClientID),
-            URLQueryItem(name: "redirect_uri", value: Self.oauthRedirectURI),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language"),
-            URLQueryItem(name: "code_challenge", value: codeChallenge),
-            URLQueryItem(name: "code_challenge_method", value: "S256"),
-            URLQueryItem(name: "access_type", value: "offline"),
-            URLQueryItem(name: "prompt", value: "consent select_account"),
-        ]
-
-        guard let authURL = components?.url else {
+        defer {
+            server.stop()
+            if loopbackServer === server {
+                loopbackServer = nil
+            }
+            safariAuthItem = nil
             isSigningIn = false
-            lastError = L("ag.error.oauthFailed", "Shared")
-            return
         }
 
         do {
-            let callbackURL = try await performWebAuth(url: authURL, scheme: Self.oauthCallbackScheme)
+            let port = try await server.start(
+                preferredPort: Self.preferredLoopbackPort,
+                path: Self.loopbackCallbackPath)
+            let redirectURI = "http://localhost:\(port)\(Self.loopbackCallbackPath)"
+
+            let customClientID = customOAuthClientID
+            let effectiveClientID = customClientID.isEmpty ? Self.defaultAntigravityClientID : customClientID
+            let clientSecret = customOAuthClientSecret
+            let codeVerifier = Self.generatePKCEVerifier()
+            let codeChallenge = Self.pkceChallenge(for: codeVerifier)
+            let stateToken = Self.generatePKCEVerifier()
+
+            // RFC 8252 compliant Google OAuth 2.0 authorization URL:
+            // - Uses loopback redirect URI (http://localhost:<port>/oauth-callback)
+            //   instead of custom schemes rejected by Google's Desktop OAuth policy.
+            // - Uses valid Cloud Platform + OpenID scopes.
+            var components = URLComponents(string: Self.googleAuthEndpoint)
+            components?.queryItems = [
+                URLQueryItem(name: "client_id", value: effectiveClientID),
+                URLQueryItem(name: "redirect_uri", value: redirectURI),
+                URLQueryItem(name: "response_type", value: "code"),
+                URLQueryItem(name: "scope", value: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cloud-platform"),
+                URLQueryItem(name: "code_challenge", value: codeChallenge),
+                URLQueryItem(name: "code_challenge_method", value: "S256"),
+                URLQueryItem(name: "state", value: stateToken),
+                URLQueryItem(name: "access_type", value: "offline"),
+                URLQueryItem(name: "prompt", value: "consent select_account"),
+            ]
+
+            guard let authURL = components?.url else {
+                lastError = L("ag.error.oauthFailed", "Shared")
+                return
+            }
+
+            // Present SFSafariViewController via SwiftUI sheet
+            safariAuthItem = AntigravityAuthSheetItem(url: authURL)
+
+            let callbackURL = try await server.waitForCallback()
+            safariAuthItem = nil
+
             let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
 
             if let errorDesc = items.first(where: { $0.name == "error" })?.value {
-                isSigningIn = false
                 lastError = "Google OAuth: \(errorDesc)"
                 return
             }
 
+            if let returnedState = items.first(where: { $0.name == "state" })?.value,
+               returnedState != stateToken {
+                lastError = LocalizationManager.shared.effectiveCode == "ar"
+                    ? "فشل التحقق الأمني (OAuth state mismatch). أعد المحاولة."
+                    : "OAuth state verification failed. Please try again."
+                return
+            }
+
             guard let code = items.first(where: { $0.name == "code" })?.value, !code.isEmpty else {
-                isSigningIn = false
                 lastError = L("ag.error.oauthFailed", "Shared")
                 return
             }
@@ -202,6 +483,8 @@ final class AntigravityService: NSObject, ObservableObject {
             let token = try await exchangeOAuthCode(
                 code: code,
                 clientID: effectiveClientID,
+                clientSecret: clientSecret.isEmpty ? nil : clientSecret,
+                redirectURI: redirectURI,
                 codeVerifier: codeVerifier)
 
             let profile = await fetchGoogleProfile(accessToken: token)
@@ -231,17 +514,23 @@ final class AntigravityService: NSObject, ObservableObject {
                 quotaRemainingPercent: 100)
 
             persistState()
-            isSigningIn = false
             statusMessage = String(
                 format: L("ag.status.connected", "Shared"),
                 detectedTier.localizedName,
                 max(discovered.count, availableCatalogModels.count))
+        } catch is CancellationError {
+            // User closed the Safari sheet manually — exit quietly without error banner
         } catch {
-            isSigningIn = false
-            if (error as NSError).code != ASWebAuthenticationSessionError.canceledLogin.rawValue {
-                lastError = error.localizedDescription
-            }
+            lastError = error.localizedDescription
         }
+    }
+
+    /// Called when the user dismisses the Safari sign-in sheet before Google
+    /// redirects back to localhost.
+    func cancelOAuthIfPending() {
+        safariAuthItem = nil
+        loopbackServer?.stop()
+        loopbackServer = nil
     }
 
     // MARK: - Plan Switching, Model Selection & Auto-Sync
@@ -346,7 +635,7 @@ final class AntigravityService: NSObject, ObservableObject {
         defer { isRunningMission = false }
 
         let descriptor = selectedDescriptor
-        var mission = AntigravityMission(
+        let mission = AntigravityMission(
             prompt: trimmed,
             modelName: descriptor.name,
             thinkingLevel: thinkingLevel,
@@ -555,8 +844,6 @@ final class AntigravityService: NSObject, ObservableObject {
     private func resolveBestModelID(for tier: AntigravityPlanTier, discovered: [String]) -> String {
         let preferred = AntigravityModelCatalog.defaultModel(for: tier)
         if discovered.isEmpty { return preferred.id }
-        // If Google's live API returned the exact Antigravity model ID, use it;
-        // otherwise pick the best matching live Gemini model while keeping catalog ID.
         if discovered.contains(preferred.apiModelID) {
             return preferred.id
         }
@@ -567,7 +854,6 @@ final class AntigravityService: NSObject, ObservableObject {
         if discovered.isEmpty || discovered.contains(descriptor.apiModelID) {
             return descriptor.apiModelID
         }
-        // Gracefully map to the strongest live discovered Gemini model on this key
         if descriptor.minimumTier >= .pro,
            let proMatch = discovered.first(where: { $0.contains("2.5-pro") || $0.contains("pro") }) {
             return proMatch
@@ -578,30 +864,15 @@ final class AntigravityService: NSObject, ObservableObject {
         return discovered.first ?? descriptor.apiModelID
     }
 
-    // MARK: - OAuth Helpers
+    // MARK: - OAuth Token Exchange & PKCE Helpers
 
-    private func performWebAuth(url: URL, scheme: String) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            let session = ASWebAuthenticationSession(
-                url: url,
-                callbackURLScheme: scheme
-            ) { callbackURL, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let callbackURL {
-                    continuation.resume(returning: callbackURL)
-                } else {
-                    continuation.resume(throwing: LLMError.badResponse("No callback URL returned"))
-                }
-            }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            self.authSession = session
-            session.start()
-        }
-    }
-
-    private func exchangeOAuthCode(code: String, clientID: String, codeVerifier: String) async throws -> String {
+    private func exchangeOAuthCode(
+        code: String,
+        clientID: String,
+        clientSecret: String?,
+        redirectURI: String,
+        codeVerifier: String
+    ) async throws -> String {
         guard let url = URL(string: Self.googleTokenEndpoint) else {
             throw LLMError.invalidURL(Self.googleTokenEndpoint)
         }
@@ -609,19 +880,37 @@ final class AntigravityService: NSObject, ObservableObject {
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
-        let params = [
-            "code=\(code)",
-            "client_id=\(clientID)",
-            "redirect_uri=\(Self.oauthRedirectURI)",
-            "grant_type=authorization_code",
-            "code_verifier=\(codeVerifier)",
-        ].joined(separator: "&")
-        req.httpBody = Data(params.utf8)
+        var formItems: [(String, String)] = [
+            ("code", code),
+            ("client_id", clientID),
+            ("redirect_uri", redirectURI),
+            ("grant_type", "authorization_code"),
+            ("code_verifier", codeVerifier),
+        ]
+        if let clientSecret, !clientSecret.isEmpty {
+            formItems.append(("client_secret", clientSecret))
+        }
+
+        let encodedBody = formItems.map { key, value in
+            "\(Self.formEncode(key))=\(Self.formEncode(value))"
+        }.joined(separator: "&")
+        req.httpBody = Data(encodedBody.utf8)
 
         let (data, _) = try await URLSession.shared.data(for: req)
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let accessToken = json["access_token"] as? String, !accessToken.isEmpty {
-            return accessToken
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let accessToken = json["access_token"] as? String, !accessToken.isEmpty {
+                return accessToken
+            }
+            if let err = json["error"] as? String {
+                let desc = (json["error_description"] as? String) ?? err
+                if desc.lowercased().contains("client_secret") {
+                    let hint = LocalizationManager.shared.effectiveCode == "ar"
+                        ? "يتطلب Google OAuth إدخال Client Secret في إعدادات OAuth المتقدمة، أو استخدم مفتاح Google AI Studio بالأسفل للاتصال الفوري."
+                        : "Google OAuth token exchange requires a Client Secret in Advanced OAuth settings, or use a Google AI Studio API Key below for instant connection."
+                    throw LLMError.badResponse("\(desc) — \(hint)")
+                }
+                throw LLMError.badResponse("Google OAuth (\(err)): \(desc)")
+            }
         }
         throw LLMError.unauthorized
     }
@@ -639,6 +928,12 @@ final class AntigravityService: NSObject, ObservableObject {
             return (email, name)
         }
         return ("developer@google.com", "Google Developer")
+    }
+
+    private static func formEncode(_ string: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return string.addingPercentEncoding(withAllowedCharacters: allowed) ?? string
     }
 
     private static func generatePKCEVerifier() -> String {
@@ -744,19 +1039,6 @@ final class AntigravityService: NSObject, ObservableObject {
         let capped = Array(missions.prefix(30))
         if let data = try? JSONEncoder().encode(capped) {
             UserDefaults.standard.set(data, forKey: Self.missionsDefaultsKey)
-        }
-    }
-}
-
-// MARK: - ASWebAuthenticationPresentationContextProviding
-
-extension AntigravityService: ASWebAuthenticationPresentationContextProviding {
-    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        MainActor.assumeIsolated {
-            UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap(\.windows)
-                .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
         }
     }
 }
