@@ -1552,7 +1552,7 @@ struct LiveScreenView: View {
                 .foregroundStyle(Color.white.opacity(0.65))
                 .lineLimit(1)
             Spacer()
-            Text("V8.0")
+            Text("V8.5")
                 .font(AstralTheme.mono(9.5).weight(.bold))
                 .foregroundStyle(AstralTheme.orbGreen)
         }

@@ -194,6 +194,9 @@ final class AppEnvironment: ObservableObject {
             presentedSection = nil
             resumeMostRecent()
             return true
+        case "antigravity":
+            presentedSection = .antigravity
+            return true
         case "chat":
             presentedSection = nil
             return true

@@ -122,7 +122,7 @@ struct AstraComputerBar: View {
                     .foregroundStyle(AstralTheme.textPrimary)
                     .lineLimit(1)
 
-                Text("V8.0")
+                Text("V8.5")
                     .font(AstralTheme.mono(8.5).weight(.bold))
                     .foregroundStyle(AstralTheme.orbGreen)
                     .padding(.horizontal, 5)

@@ -16,6 +16,7 @@ struct ChatView: View {
 
     @StateObject private var observation = ChatSessionObservation()
     @ObservedObject private var taskBoard = AgentTaskBoard.shared
+    @ObservedObject private var antigravity = AntigravityService.shared
 
     @State private var showSidebar = false
     @State private var sidebarSearch = ""
@@ -632,6 +633,34 @@ struct ChatView: View {
                     .padding(.vertical, 6)
                     .liquidCapsule(interactive: true)
 
+                    // Standalone Google Antigravity IDE quick entry pill
+                    Button {
+                        env.presentSection(.antigravity)
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "sparkles.rectangle.stack.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color(red: 0.42, green: 0.68, blue: 1.0))
+                            Text(antigravity.isSignedIn
+                                 ? "Google Antigravity · \(antigravity.currentTier.displayName)"
+                                 : L("ag.quickEntry", "Shared"))
+                                .font(AstralTheme.headline(12))
+                                .foregroundStyle(AstralTheme.textPrimary)
+                            AIcon(
+                                AstralIcons.chevronForward,
+                                size: 11,
+                                strokeWidth: 2.2,
+                                color: AstralTheme.textSecondary)
+                                .scaleEffect(x: language.layoutDirection == .rightToLeft ? -1 : 1, y: 1)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7.5)
+                        .liquidCapsule(
+                            tint: Color(red: 0.35, green: 0.58, blue: 1.0).opacity(0.14),
+                            interactive: true)
+                    }
+                    .buttonStyle(PressableOrbStyle())
+
                     LazyVGrid(
                         columns: [
                             GridItem(.flexible(), spacing: 12),
@@ -799,16 +828,21 @@ struct ChatView: View {
                 .padding(.vertical, AstralTheme.Spacings.xs)
             }
 
-            // Sections — the compact 2×2 footer grid with custom Lucide icons
-            sectionsGrid
+            // Standalone Google Antigravity IDE featured section card
+            antigravitySidebarCard
                 .padding(.horizontal, AstralTheme.Spacings.m)
                 .padding(.top, AstralTheme.Spacings.s)
-                .padding(.bottom, AstralTheme.Spacings.s)
                 .overlay(alignment: .top) {
                     Rectangle()
                         .fill(AstralTheme.separator)
                         .frame(height: 1)
                 }
+
+            // Sections — the compact 2×2 footer grid with custom Lucide icons
+            sectionsGrid
+                .padding(.horizontal, AstralTheme.Spacings.m)
+                .padding(.top, 8)
+                .padding(.bottom, AstralTheme.Spacings.s)
         }
         .frame(width: 320, alignment: .leading)
         .frame(maxHeight: .infinity)
@@ -974,9 +1008,76 @@ struct ChatView: View {
         }
     }
 
+    private var antigravitySidebarCard: some View {
+        Button {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+                showSidebar = false
+            }
+            env.presentSection(.antigravity)
+        } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.28, green: 0.56, blue: 1.0).opacity(0.24),
+                                    Color(red: 0.58, green: 0.42, blue: 0.98).opacity(0.18),
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "sparkles.rectangle.stack.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.45, green: 0.72, blue: 1.0))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(L("tab.antigravity", "Shared"))
+                            .font(AstralTheme.headline(13))
+                            .foregroundStyle(AstralTheme.textPrimary)
+                            .lineLimit(1)
+                        Text(antigravity.isSignedIn ? antigravity.currentTier.displayName : "IDE")
+                            .font(AstralTheme.mono(9).weight(.bold))
+                            .foregroundStyle(antigravity.isSignedIn ? antigravity.currentTier.accentColor : AstralTheme.orbGreen)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1.5)
+                            .background(
+                                Capsule().fill(
+                                    (antigravity.isSignedIn ? antigravity.currentTier.accentColor : AstralTheme.orbGreen).opacity(0.16)))
+                    }
+                    Text(antigravity.isSignedIn
+                         ? antigravity.selectedDescriptor.name
+                         : L("ag.sidebar.subtitle", "Shared"))
+                        .font(AstralTheme.mono(10))
+                        .foregroundStyle(AstralTheme.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                AIcon(
+                    AstralIcons.chevronForward,
+                    size: 12,
+                    strokeWidth: 2.2,
+                    color: AstralTheme.textSecondary)
+                    .scaleEffect(x: language.layoutDirection == .rightToLeft ? -1 : 1, y: 1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .liquidGlass(
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous),
+                tint: Color(red: 0.35, green: 0.58, blue: 1.0).opacity(0.10),
+                interactive: true)
+        }
+        .buttonStyle(PressableOrbStyle())
+    }
+
     private func sectionAstralIcon(for section: AppTab) -> String {
         switch section {
         case .chat: return AstralIcons.chat
+        case .antigravity: return AstralIcons.fileCode
         case .skills: return AstralIcons.puzzle
         case .browser: return AstralIcons.browser
         case .files: return AstralIcons.folder

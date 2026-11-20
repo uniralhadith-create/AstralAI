@@ -53,6 +53,25 @@
 
 /* V2/V3 — Arabic */
 
-"app.versionBadge" = "V8.0.0 · الإصدار 8.0.0";
+"app.versionBadge" = "V8.5.0 · الإصدار 8.5.0";
 
 "common.back" = "رجوع";
+
+/* V8.5.0 — Google Antigravity IDE (Arabic) */
+"tab.antigravity" = "Google Antigravity";
+"ag.quickEntry" = "افتح Google Antigravity IDE";
+"ag.sidebar.subtitle" = "سجّل دخول بجوجل · بدون كمبيوتر";
+"ag.onboarding.subtitle" = "سجّل الدخول بحسابك في جوجل لتحصل على بيئة Antigravity IDE كاملة على الآيفون بدون كمبيوتر — مع اتصال تلقائي بنماذج Gemini 4 و 3.x حسب خطتك.";
+"ag.signin.googleTitle" = "تسجيل الدخول بحساب جوجل";
+"ag.signin.googleDesc" = "سجّل الدخول عبر Google OAuth 2.0 لربط خطتك في Google AI (المجانية أو Pro أو Ultra أو Enterprise) تلقائياً.";
+"ag.signin.googleButton" = "المتابعة بحساب Google";
+"ag.signin.apiTitle" = "اتصال فوري عبر Google AI Studio";
+"ag.signin.apiDesc" = "الصق مفتاح Google AI Studio للتحقق المباشر من حسابك واكتشاف نماذج جوجل المتاحة لخطتك ومزامنتها تلقائياً في IDE والمحادثة.";
+"ag.signin.connectButton" = "اتصال ومزامنة النماذج تلقائياً";
+"ag.error.emptyKey" = "يرجى إدخال مفتاح Google AI Studio صالح.";
+"ag.error.oauthFailed" = "تعذّر إكمال تسجيل دخول Google OAuth. يمكنك الاتصال الفوري عبر مفتاح Google AI Studio.";
+"ag.status.openingGoogle" = "جارٍ فتح تسجيل دخول Google…";
+"ag.status.exchangingToken" = "جارٍ ربط جلسة Google Antigravity…";
+"ag.status.verifying" = "جارٍ التحقق من حساب جوجل واكتشاف نماذج خطتك…";
+"ag.status.connected" = "متصل (%@) · %d نموذج من جوجل جاهز";
+"ag.status.modelsRefreshed" = "تمت مزامنة %d نموذج حيّ من جوجل";

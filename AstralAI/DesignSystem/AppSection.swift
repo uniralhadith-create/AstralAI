@@ -9,6 +9,7 @@ import SwiftUI
 /// shared by the drawer, deep links and the composer.
 public enum AppTab: String, CaseIterable, Identifiable {
     case chat
+    case antigravity
     case skills
     case browser
     case files
@@ -19,6 +20,7 @@ public enum AppTab: String, CaseIterable, Identifiable {
     public var icon: String {
         switch self {
         case .chat: return "message.fill"
+        case .antigravity: return "sparkles.rectangle.stack.fill"
         case .skills: return "puzzlepiece.extension.fill"
         case .browser: return "safari.fill"
         case .files: return "folder.fill"
@@ -31,6 +33,7 @@ public enum AppTab: String, CaseIterable, Identifiable {
     public var filledIcon: String {
         switch self {
         case .chat: return "plus.bubble.fill"
+        case .antigravity: return "sparkles.rectangle.stack.fill"
         case .skills: return "puzzlepiece.extension.fill"
         case .browser: return "safari.fill"
         case .files: return "folder.fill"
@@ -42,6 +45,7 @@ public enum AppTab: String, CaseIterable, Identifiable {
     public var outlineIcon: String {
         switch self {
         case .chat: return "message"
+        case .antigravity: return "sparkles.rectangle.stack"
         case .skills: return "puzzlepiece.extension"
         case .browser: return "safari"
         case .files: return "folder"
@@ -52,6 +56,7 @@ public enum AppTab: String, CaseIterable, Identifiable {
     public var localizedTitle: String {
         switch self {
         case .chat: return L("tab.chat", "Shared")
+        case .antigravity: return L("tab.antigravity", "Shared")
         case .skills: return L("tab.skills", "Shared")
         case .browser: return L("tab.browser", "Shared")
         case .files: return L("tab.files", "Shared")
@@ -82,6 +87,8 @@ public struct SectionSheet: View {
                 switch section {
                 case .chat:
                     ChatView()
+                case .antigravity:
+                    AntigravityIDEView()
                 case .skills:
                     SkillsView()
                 case .browser:

@@ -53,6 +53,25 @@
 
 /* V2/V3 — English */
 
-"app.versionBadge" = "V8.0.0 · Version 8.0.0";
+"app.versionBadge" = "V8.5.0 · Version 8.5.0";
 
 "common.back" = "Back";
+
+/* V8.5.0 — Google Antigravity IDE (English) */
+"tab.antigravity" = "Google Antigravity";
+"ag.quickEntry" = "Open Google Antigravity IDE";
+"ag.sidebar.subtitle" = "Sign in with Google · Zero PC";
+"ag.onboarding.subtitle" = "Sign in with your Google account to unlock the full Antigravity IDE right on your iPhone — automatically connecting to Gemini 4 & 3.x models for your plan.";
+"ag.signin.googleTitle" = "Sign in with Google Account";
+"ag.signin.googleDesc" = "Authenticate with Google OAuth 2.0 to link your Google AI Free, Pro, Ultra, or Enterprise plan automatically.";
+"ag.signin.googleButton" = "Continue with Google";
+"ag.signin.apiTitle" = "Instant Connect via Google AI Studio";
+"ag.signin.apiDesc" = "Paste your Google AI Studio key to verify your account live, auto-detect available Gemini models, and sync directly to Antigravity IDE & Chat.";
+"ag.signin.connectButton" = "Connect & Auto-Sync Models";
+"ag.error.emptyKey" = "Please enter a valid Google AI Studio API key.";
+"ag.error.oauthFailed" = "Google sign-in could not be completed. You can also connect instantly with your Google AI Studio key.";
+"ag.status.openingGoogle" = "Opening Google sign-in…";
+"ag.status.exchangingToken" = "Linking Google Antigravity session…";
+"ag.status.verifying" = "Verifying Google account & discovering plan models…";
+"ag.status.connected" = "Connected (%@) · %d Google models ready";
+"ag.status.modelsRefreshed" = "Synced %d live Google models";

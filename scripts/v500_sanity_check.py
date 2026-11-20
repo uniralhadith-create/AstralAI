@@ -128,9 +128,9 @@ def main() -> int:
 
     # 3. Release invariants for V8.0.0
     project = (ROOT / "project.yml").read_text(encoding="utf-8")
-    if project.count("8.0.0") != 4:
-        failures.append(f"project.yml: expected 4 x 8.0.0, found {project.count('8.0.0')}")
-    target_build = 'CURRENT_PROJECT_VERSION: "18"'
+    if project.count("8.5.0") != 4:
+        failures.append(f"project.yml: expected 4 x 8.5.0, found {project.count('8.0.0')}")
+    target_build = 'CURRENT_PROJECT_VERSION: "19"'
     if project.count(target_build) != 3:
         failures.append(f"project.yml: expected 3 x CURRENT_PROJECT_VERSION 18, found {project.count(target_build)}")
     # CRITICAL: Info.plist CFBundleVersion (device-displayed build) must match
@@ -144,7 +144,7 @@ def main() -> int:
 
     for lang in ["en", "ar"]:
         badge = (ROOT / f"AstralAI/Resources/{lang}.lproj/Shared.strings").read_text(encoding="utf-8")
-        if "V8.0.0" not in badge:
+        if "V8.5.0" not in badge:
             failures.append(f"versionBadge not updated to V8.0.0 ({lang})")
 
     shell = (ROOT / "AstralAI/AgentCore/Sandbox/SandboxShell.swift").read_text(encoding="utf-8")
@@ -177,6 +177,10 @@ def main() -> int:
     terminal = (ROOT / "AstralAI/Features/Files/TerminalView.swift").read_text(encoding="utf-8")
     if "AstralComputerIcon" not in terminal or "astra-os 5.0.0" not in terminal:
         failures.append("TerminalView: missing AstralComputerIcon or astra-os 5.0.0 compat banner")
+
+    ag_view = (ROOT / "AstralAI/Features/Antigravity/AntigravityIDEView.swift").read_text(encoding="utf-8")
+    if "struct AntigravityIDEView" not in ag_view:
+        failures.append("AntigravityIDEView: missing standalone IDE view")
 
     if failures:
         print("V8.0.0 SANITY: FAIL")
