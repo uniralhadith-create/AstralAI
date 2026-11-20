@@ -42,6 +42,7 @@ struct ComposerView: View {
     @State private var showingActionPanel = false
 
     @AppStorage("astral.agentMode") private var agentMode = false
+    @AppStorage("astral.chatMode") private var chatModeRaw: String = "chat"
 
     private let maxImages = 4
     private let maxFiles = 4
@@ -335,7 +336,15 @@ struct ComposerView: View {
     private var agentModeChip: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            agentMode.toggle()
+            if chatModeRaw == "chat" {
+                chatModeRaw = "agent"
+                agentMode = true
+            } else if chatModeRaw == "agent" {
+                chatModeRaw = "ide"
+            } else {
+                chatModeRaw = "chat"
+                agentMode = false
+            }
         } label: {
             HStack(spacing: 5) {
                 ZStack {

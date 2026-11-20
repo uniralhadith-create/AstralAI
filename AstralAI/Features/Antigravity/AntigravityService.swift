@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import Network
+import AuthenticationServices
 import CryptoKit
 import UIKit
 
@@ -11,241 +11,29 @@ struct AntigravityAuthSheetItem: Identifiable, Equatable {
     let url: URL
 }
 
-// MARK: - RFC 8252 Loopback OAuth Server (127.0.0.1 / localhost)
+// MARK: - Antigravity Interaction Mode (Chatbot vs IDE Agent)
 
-/// Lightweight local HTTP callback server using Apple's `Network` framework
-/// (`NWListener`). Binds to `127.0.0.1` on Google Antigravity's loopback port
-/// (`51121`, falling back to an ephemeral port if busy) so Google OAuth 2.0
-/// redirects to `http://localhost:<port>/oauth-callback` in full compliance
-/// with Google's Desktop/Installed OAuth 2.0 policy (avoiding Error 400
-/// `invalid_request` from disallowed custom URL schemes).
-private final class LoopbackOAuthServer {
-    private let queue = DispatchQueue(label: "com.uniral.astralai.antigravity.loopback")
-    private var listener: NWListener?
-    private var startContinuation: CheckedContinuation<UInt16, Error>?
-    private var callbackContinuation: CheckedContinuation<URL, Error>?
-    private var callbackPath: String = "/oauth-callback"
-    private var isStopped: Bool = false
+enum AntigravityWorkMode: String, CaseIterable, Identifiable {
+    case chat
+    case ideMission
 
-    func start(preferredPort: UInt16 = 51121, path: String = "/oauth-callback") async throws -> UInt16 {
-        self.callbackPath = path
-        do {
-            return try await startListener(port: NWEndpoint.Port(rawValue: preferredPort))
-        } catch {
-            // Fallback to an OS-assigned ephemeral port if 51121 is already in use
-            return try await startListener(port: .any)
-        }
-    }
-
-    private func startListener(port: NWEndpoint.Port?) async throws -> UInt16 {
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async { [weak self] in
-                guard let self else {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                self.stopInternal(cancelCallback: false)
-                self.isStopped = false
-                self.startContinuation = continuation
-
-                let params = NWParameters.tcp
-                params.allowLocalEndpointReuse = true
-                if let port {
-                    params.requiredLocalEndpoint = NWEndpoint.hostPort(
-                        host: .ipv4(.loopback),
-                        port: port)
-                }
-
-                do {
-                    let newListener = try NWListener(using: params)
-                    self.listener = newListener
-
-                    newListener.stateUpdateHandler = { [weak self] state in
-                        guard let self else { return }
-                        switch state {
-                        case .ready:
-                            if let boundPort = newListener.port?.rawValue, boundPort > 0 {
-                                self.finishStart(with: .success(boundPort))
-                            } else {
-                                self.finishStart(with: .failure(LLMError.badResponse("Loopback server bound to port 0")))
-                            }
-                        case .failed(let error):
-                            self.finishStart(with: .failure(error))
-                            self.finishCallback(with: .failure(error))
-                        case .cancelled:
-                            self.finishStart(with: .failure(CancellationError()))
-                        default:
-                            break
-                        }
-                    }
-
-                    newListener.newConnectionHandler = { [weak self] connection in
-                        self?.handle(connection: connection)
-                    }
-
-                    newListener.start(queue: self.queue)
-                } catch {
-                    self.finishStart(with: .failure(error))
-                }
-            }
-        }
-    }
-
-    func waitForCallback() async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async { [weak self] in
-                guard let self else {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                if self.isStopped {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                self.callbackContinuation = continuation
-            }
-        }
-    }
-
-    func stop() {
-        queue.async { [weak self] in
-            self?.stopInternal(cancelCallback: true)
-        }
-    }
-
-    private func stopInternal(cancelCallback: Bool) {
-        isStopped = true
-        listener?.stateUpdateHandler = nil
-        listener?.newConnectionHandler = nil
-        listener?.cancel()
-        listener = nil
-        if cancelCallback {
-            finishStart(with: .failure(CancellationError()))
-            finishCallback(with: .failure(CancellationError()))
-        }
-    }
-
-    private func finishStart(with result: Result<UInt16, Error>) {
-        guard let cont = startContinuation else { return }
-        startContinuation = nil
-        cont.resume(with: result)
-    }
-
-    private func finishCallback(with result: Result<URL, Error>) {
-        guard let cont = callbackContinuation else { return }
-        callbackContinuation = nil
-        cont.resume(with: result)
-    }
-
-    private func handle(connection: NWConnection) {
-        connection.start(queue: queue)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, _, _ in
-            guard let self else {
-                connection.cancel()
-                return
-            }
-            guard let data, let requestText = String(data: data, encoding: .utf8),
-                  let firstLine = requestText.components(separatedBy: "\r\n").first else {
-                connection.cancel()
-                return
-            }
-
-            let parts = firstLine.split(separator: " ")
-            guard parts.count >= 2 else {
-                connection.cancel()
-                return
-            }
-
-            let method = String(parts[0]).uppercased()
-            let target = String(parts[1])
-
-            // Ignore browser preflight OPTIONS, favicon probes, or unrelated requests
-            // so the loopback server stays alive until Google's real redirect arrives.
-            if method == "OPTIONS" {
-                self.sendHTTP(on: connection, status: "204 No Content", body: "")
-                return
-            }
-
-            guard let url = URL(string: "http://localhost\(target)"),
-                  url.path == self.callbackPath else {
-                self.sendHTTP(on: connection, status: "404 Not Found", body: "Not Found")
-                return
-            }
-
-            let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-            let hasCode = queryItems.contains(where: { $0.name == "code" && !($0.value ?? "").isEmpty })
-            let hasError = queryItems.contains(where: { $0.name == "error" && !($0.value ?? "").isEmpty })
-
-            guard hasCode || hasError else {
-                self.sendHTTP(on: connection, status: "204 No Content", body: "")
-                return
-            }
-
-            let html = hasCode
-                ? """
-                <!doctype html>
-                <html lang="ar">
-                <head>
-                  <meta charset="utf-8" />
-                  <meta name="viewport" content="width=device-width,initial-scale=1" />
-                  <title>Astral AI · Google Antigravity</title>
-                  <style>
-                    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-                           background:#0b0d12; color:#eef2f7; font-family:-apple-system,BlinkMacSystemFont,sans-serif; text-align:center; padding:24px; }
-                    .card { max-width:360px; padding:28px 24px; border-radius:22px; background:rgba(255,255,255,0.06);
-                            border:1px solid rgba(255,255,255,0.12); }
-                    .badge { display:inline-block; padding:6px 12px; border-radius:999px; background:rgba(52,211,153,0.16);
-                             color:#34d399; font-weight:700; font-size:13px; margin-bottom:14px; }
-                    h1 { font-size:20px; margin:0 0 8px; }
-                    p { font-size:14px; color:#9aa4b2; margin:0; line-height:1.5; }
-                  </style>
-                </head>
-                <body>
-                  <div class="card">
-                    <div class="badge">✓ Connected</div>
-                    <h1>تم تسجيل الدخول بنجاح</h1>
-                    <p>جارٍ إكمال ربط حسابك مع Google Antigravity IDE داخل Astral AI...</p>
-                  </div>
-                </body>
-                </html>
-                """
-                : """
-                <!doctype html>
-                <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-                <body style="background:#0b0d12;color:#f87171;font-family:-apple-system,sans-serif;text-align:center;padding:48px 24px;">
-                  <h2>تعذّر إكمال تسجيل الدخول</h2>
-                  <p>يمكنك إغلاق هذه النافذة والعودة إلى Astral AI.</p>
-                </body></html>
-                """
-
-            self.sendHTTP(on: connection, status: "200 OK", contentType: "text/html; charset=utf-8", body: html)
-            self.finishCallback(with: .success(url))
-        }
-    }
-
-    private func sendHTTP(
-        on connection: NWConnection,
-        status: String,
-        contentType: String = "text/plain; charset=utf-8",
-        body: String
-    ) {
-        let bodyData = Data(body.utf8)
-        let header = "HTTP/1.1 \(status)\r\nContent-Type: \(contentType)\r\nContent-Length: \(bodyData.count)\r\nConnection: close\r\n\r\n"
-        var payload = Data(header.utf8)
-        payload.append(bodyData)
-        connection.send(content: payload, completion: .contentProcessed { _ in
-            connection.cancel()
-        })
-    }
+    var id: String { rawValue }
 }
 
 // MARK: - Google Antigravity IDE Service (PC-Free on iPhone)
 
-/// Owns Google Antigravity authentication (RFC 8252 Loopback OAuth 2.0 PKCE via
-/// `NWListener` + `SFSafariViewController`, or Google AI Studio API Key), live
-/// model discovery, automatic plan-tier detection, automatic synchronization
-/// into `ProviderStore`, and PC-free autonomous IDE mission execution directly
-/// over `/home/astral` and `SandboxShell`.
+/// Owns Google Antigravity authentication:
+/// 1. **Google Account Chooser -> AI Studio** (zero `Error 400`, always lets the
+///    user pick which Google email to use, auto-detects copied key from clipboard).
+/// 2. **iOS-Compliant Google OAuth 2.0 PKCE** via `ASWebAuthenticationSession`
+///    using `prefersEphemeralWebBrowserSession` (so Google always opens the
+///    account chooser instead of auto-selecting a cached Safari email) and the
+///    official iOS reversed Client ID redirect URI (`com.googleusercontent.apps.<id>:/oauth2redirect/google`).
+///
+/// Also owns live Gemini model discovery, automatic plan-tier detection,
+/// `ProviderStore` auto-sync (so Antigravity works in Main Chat as a normal
+/// chatbot too), and both conversational chat & autonomous IDE missions over
+/// `/home/astral` and `SandboxShell`.
 @MainActor
 final class AntigravityService: NSObject, ObservableObject {
 
@@ -256,6 +44,8 @@ final class AntigravityService: NSObject, ObservableObject {
     @Published private(set) var account: AntigravityAccount?
     @Published var selectedModelID: String = "gemini-4-hydrogen"
     @Published var thinkingLevel: AntigravityThinkingLevel = .high
+    @Published var workMode: AntigravityWorkMode = .chat
+    @Published var useEphemeralOAuthSession: Bool = true
     @Published var isSigningIn: Bool = false
     @Published var isSyncingModels: Bool = false
     @Published var statusMessage: String?
@@ -272,9 +62,10 @@ final class AntigravityService: NSObject, ObservableObject {
     static let googleAuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth"
     static let googleTokenEndpoint = "https://oauth2.googleapis.com/token"
     static let googleUserInfoEndpoint = "https://openidconnect.googleapis.com/v1/userinfo"
-    static let defaultAntigravityClientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-    static let loopbackCallbackPath = "/oauth-callback"
-    static let preferredLoopbackPort: UInt16 = 51121
+    /// Forces Google's official Account Chooser before landing on Google AI Studio
+    /// so the user can always pick which Gmail account they want to use.
+    static let googleAccountChooserAIStudioURL =
+        "https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Faistudio.google.com%2Fapikey"
 
     private static let accountDefaultsKey = "astral.antigravity.account.v85"
     private static let missionsDefaultsKey = "astral.antigravity.missions.v85"
@@ -284,7 +75,7 @@ final class AntigravityService: NSObject, ObservableObject {
     private static let keychainCredentialAccount = "astral.antigravity.credential"
     private static let keychainClientSecretAccount = "astral.antigravity.oauthClientSecret"
 
-    private var loopbackServer: LoopbackOAuthServer?
+    private var authSession: ASWebAuthenticationSession?
 
     // MARK: - Init
 
@@ -329,12 +120,38 @@ final class AntigravityService: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - 1. Sign in with Google AI Studio Key (Zero-PC, Instant Live Model Auto-Discovery)
+    // MARK: - 1. Open Google Account Chooser (Pick Any Gmail -> AI Studio Key)
+
+    /// Opens Google's official `AccountChooser` inside `SFSafariViewController`
+    /// so the user explicitly chooses which Google account to sign in with
+    /// (never auto-signing into a cached Safari email) and avoids Google's
+    /// desktop-OAuth-on-iOS `Error 400: invalid_request`.
+    func openGoogleAccountChooser() {
+        lastError = nil
+        if let url = URL(string: Self.googleAccountChooserAIStudioURL) {
+            safariAuthItem = AntigravityAuthSheetItem(url: url)
+        }
+    }
+
+    /// Checks the iOS clipboard for a Google Gemini / AI Studio API key (`AIza...`).
+    func detectClipboardAPIKey() -> String? {
+        guard let raw = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              raw.hasPrefix("AIza"),
+              raw.count >= 30,
+              raw.count <= 80,
+              !raw.contains(" ") else {
+            return nil
+        }
+        return raw
+    }
+
+    // MARK: - 2. Sign in with Google AI Studio Key (Zero-PC, Instant Live Model Auto-Discovery)
 
     /// Connects a Google Account via Google AI Studio / Gemini API key, queries
     /// Google's live `/v1beta/models` endpoint to verify the key and detect
     /// every unlocked Gemini model, infers the plan tier, and auto-syncs the
-    /// "Google Antigravity" provider into `ProviderStore`.
+    /// "Google Antigravity" provider into `ProviderStore` with a verified live
+    /// API model ID so both Main Chat and Antigravity IDE work immediately.
     func signInWithAPIKey(
         _ rawKey: String,
         emailHint: String = "",
@@ -352,11 +169,9 @@ final class AntigravityService: NSObject, ObservableObject {
         statusMessage = L("ag.status.verifying", "Shared")
         defer { isSigningIn = false }
 
-        // Probe Google's live models endpoint to discover models on this account.
         let discovered = await discoverGoogleModels(apiKey: key, isBearerToken: false)
         let detectedTier = preferredTier ?? inferPlanTier(from: discovered)
 
-        // Save credential securely in iOS Keychain
         try? KeychainStore.save(key, account: Self.keychainCredentialAccount)
 
         let cleanEmail = emailHint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -366,10 +181,15 @@ final class AntigravityService: NSObject, ObservableObject {
         let chosenModel = resolveBestModelID(for: detectedTier, discovered: discovered)
         selectedModelID = chosenModel
 
+        let descriptor = AntigravityModelCatalog.all.first { $0.id == chosenModel }
+            ?? AntigravityModelCatalog.defaultModel(for: detectedTier)
+        let liveAPIModel = resolveAPIModelID(for: descriptor, discovered: discovered)
+
         let syncedID = syncProvider(
             in: providerStore,
             credential: key,
-            modelID: chosenModel,
+            modelID: liveAPIModel,
+            discovered: discovered,
             tier: detectedTier,
             existingID: account?.syncedProviderID)
 
@@ -390,77 +210,68 @@ final class AntigravityService: NSObject, ObservableObject {
             max(discovered.count, availableCatalogModels.count))
     }
 
-    // MARK: - 2. Sign in with Google OAuth 2.0 PKCE (RFC 8252 Loopback + SFSafariViewController)
+    // MARK: - 3. Sign in with iOS-Compliant Google OAuth 2.0 PKCE (`ASWebAuthenticationSession`)
 
-    /// Starts a native `127.0.0.1` loopback HTTP listener (`NWListener`), opens
-    /// Google's OAuth 2.0 PKCE sign-in page inside `SFSafariViewController`
-    /// using `redirect_uri=http://localhost:<port>/oauth-callback` and valid
-    /// Google Cloud / Antigravity scopes, verifies `state`, exchanges the code
-    /// for an access token, fetches the user's Google profile, discovers their
-    /// plan & models, and auto-connects them inside Astral AI without any PC.
+    /// Uses Google's official iOS OAuth 2.0 flow:
+    /// - Reversed Client ID redirect URI (`com.googleusercontent.apps.<prefix>:/oauth2redirect/google`)
+    ///   which complies 100% with Google's iOS OAuth 2.0 policy (no `Error 400: invalid_request`).
+    /// - `prefersEphemeralWebBrowserSession = useEphemeralOAuthSession` (default `true`)
+    ///   plus `prompt=select_account consent` so Google ALWAYS asks which email
+    ///   to sign in with instead of auto-selecting a cached Safari account.
     func signInWithGoogleOAuth(
         preferredTier: AntigravityPlanTier? = nil,
         providerStore: ProviderStore
     ) async {
+        let isArabic = LocalizationManager.shared.effectiveCode == "ar"
+        let clientID = customOAuthClientID
+
+        // Google blocks Desktop OAuth client IDs (loopback/custom schemes) from iOS Mobile Safari
+        // with Error 400: invalid_request. Require a valid Google Cloud iOS OAuth Client ID here
+        // and guide the user cleanly instead of hitting Google's 400 error wall.
+        guard !clientID.isEmpty, clientID.hasSuffix(".apps.googleusercontent.com") else {
+            lastError = isArabic
+                ? "سياسة Google OAuth 2.0 على iOS تتطلب iOS Client ID من Google Cloud Console. للاتصال الفوري بدون أخطاء واختيار أي إيميل، استخدم تبويب «حساب جوجل»."
+                : "Google's iOS OAuth 2.0 policy requires an iOS Client ID from Google Cloud Console. For instant zero-error sign-in with any Gmail account, use the Google Account tab."
+            return
+        }
+
+        let clientPrefix = clientID.replacingOccurrences(of: ".apps.googleusercontent.com", with: "")
+        let callbackScheme = "com.googleusercontent.apps.\(clientPrefix)"
+        let redirectURI = "\(callbackScheme):/oauth2redirect/google"
+
         isSigningIn = true
         lastError = nil
         statusMessage = L("ag.status.openingGoogle", "Shared")
+        defer { isSigningIn = false }
 
-        let server = LoopbackOAuthServer()
-        loopbackServer = server
+        let codeVerifier = Self.generatePKCEVerifier()
+        let codeChallenge = Self.pkceChallenge(for: codeVerifier)
+        let stateToken = Self.generatePKCEVerifier()
 
-        defer {
-            server.stop()
-            if loopbackServer === server {
-                loopbackServer = nil
-            }
-            safariAuthItem = nil
-            isSigningIn = false
+        var components = URLComponents(string: Self.googleAuthEndpoint)
+        components?.queryItems = [
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "scope", value: "openid email profile https://www.googleapis.com/auth/cloud-platform"),
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
+            URLQueryItem(name: "state", value: stateToken),
+            URLQueryItem(name: "prompt", value: "select_account consent"),
+        ]
+
+        guard let authURL = components?.url else {
+            lastError = L("ag.error.oauthFailed", "Shared")
+            return
         }
 
         do {
-            let port = try await server.start(
-                preferredPort: Self.preferredLoopbackPort,
-                path: Self.loopbackCallbackPath)
-            let redirectURI = "http://localhost:\(port)\(Self.loopbackCallbackPath)"
-
-            let customClientID = customOAuthClientID
-            let effectiveClientID = customClientID.isEmpty ? Self.defaultAntigravityClientID : customClientID
-            let clientSecret = customOAuthClientSecret
-            let codeVerifier = Self.generatePKCEVerifier()
-            let codeChallenge = Self.pkceChallenge(for: codeVerifier)
-            let stateToken = Self.generatePKCEVerifier()
-
-            // RFC 8252 compliant Google OAuth 2.0 authorization URL:
-            // - Uses loopback redirect URI (http://localhost:<port>/oauth-callback)
-            //   instead of custom schemes rejected by Google's Desktop OAuth policy.
-            // - Uses valid Cloud Platform + OpenID scopes.
-            var components = URLComponents(string: Self.googleAuthEndpoint)
-            components?.queryItems = [
-                URLQueryItem(name: "client_id", value: effectiveClientID),
-                URLQueryItem(name: "redirect_uri", value: redirectURI),
-                URLQueryItem(name: "response_type", value: "code"),
-                URLQueryItem(name: "scope", value: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cloud-platform"),
-                URLQueryItem(name: "code_challenge", value: codeChallenge),
-                URLQueryItem(name: "code_challenge_method", value: "S256"),
-                URLQueryItem(name: "state", value: stateToken),
-                URLQueryItem(name: "access_type", value: "offline"),
-                URLQueryItem(name: "prompt", value: "consent select_account"),
-            ]
-
-            guard let authURL = components?.url else {
-                lastError = L("ag.error.oauthFailed", "Shared")
-                return
-            }
-
-            // Present SFSafariViewController via SwiftUI sheet
-            safariAuthItem = AntigravityAuthSheetItem(url: authURL)
-
-            let callbackURL = try await server.waitForCallback()
-            safariAuthItem = nil
+            let callbackURL = try await performWebAuth(
+                url: authURL,
+                scheme: callbackScheme,
+                ephemeral: useEphemeralOAuthSession)
 
             let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
-
             if let errorDesc = items.first(where: { $0.name == "error" })?.value {
                 lastError = "Google OAuth: \(errorDesc)"
                 return
@@ -468,7 +279,7 @@ final class AntigravityService: NSObject, ObservableObject {
 
             if let returnedState = items.first(where: { $0.name == "state" })?.value,
                returnedState != stateToken {
-                lastError = LocalizationManager.shared.effectiveCode == "ar"
+                lastError = isArabic
                     ? "فشل التحقق الأمني (OAuth state mismatch). أعد المحاولة."
                     : "OAuth state verification failed. Please try again."
                 return
@@ -480,10 +291,11 @@ final class AntigravityService: NSObject, ObservableObject {
             }
 
             statusMessage = L("ag.status.exchangingToken", "Shared")
+            let secret = customOAuthClientSecret
             let token = try await exchangeOAuthCode(
                 code: code,
-                clientID: effectiveClientID,
-                clientSecret: clientSecret.isEmpty ? nil : clientSecret,
+                clientID: clientID,
+                clientSecret: secret.isEmpty ? nil : secret,
                 redirectURI: redirectURI,
                 codeVerifier: codeVerifier)
 
@@ -496,10 +308,15 @@ final class AntigravityService: NSObject, ObservableObject {
             let chosenModel = resolveBestModelID(for: detectedTier, discovered: discovered)
             selectedModelID = chosenModel
 
+            let descriptor = AntigravityModelCatalog.all.first { $0.id == chosenModel }
+                ?? AntigravityModelCatalog.defaultModel(for: detectedTier)
+            let liveAPIModel = resolveAPIModelID(for: descriptor, discovered: discovered)
+
             let syncedID = syncProvider(
                 in: providerStore,
                 credential: token,
-                modelID: chosenModel,
+                modelID: liveAPIModel,
+                discovered: discovered,
                 tier: detectedTier,
                 existingID: account?.syncedProviderID)
 
@@ -518,19 +335,15 @@ final class AntigravityService: NSObject, ObservableObject {
                 format: L("ag.status.connected", "Shared"),
                 detectedTier.localizedName,
                 max(discovered.count, availableCatalogModels.count))
-        } catch is CancellationError {
-            // User closed the Safari sheet manually — exit quietly without error banner
         } catch {
-            lastError = error.localizedDescription
+            if (error as NSError).code != ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                lastError = error.localizedDescription
+            }
         }
     }
 
-    /// Called when the user dismisses the Safari sign-in sheet before Google
-    /// redirects back to localhost.
-    func cancelOAuthIfPending() {
+    func dismissSafariSheet() {
         safariAuthItem = nil
-        loopbackServer?.stop()
-        loopbackServer = nil
     }
 
     // MARK: - Plan Switching, Model Selection & Auto-Sync
@@ -551,6 +364,7 @@ final class AntigravityService: NSObject, ObservableObject {
                 in: providerStore,
                 credential: cred,
                 modelID: apiModel,
+                discovered: current.discoveredModels,
                 tier: tier,
                 existingID: current.syncedProviderID)
             account?.syncedProviderID = syncedID
@@ -571,6 +385,7 @@ final class AntigravityService: NSObject, ObservableObject {
                 in: providerStore,
                 credential: cred,
                 modelID: apiModel,
+                discovered: current.discoveredModels,
                 tier: current.planTier,
                 existingID: current.syncedProviderID)
             account?.syncedProviderID = syncedID
@@ -597,6 +412,7 @@ final class AntigravityService: NSObject, ObservableObject {
                 in: providerStore,
                 credential: cred,
                 modelID: apiModel,
+                discovered: discovered,
                 tier: current.planTier,
                 existingID: current.syncedProviderID)
             persistState()
@@ -615,12 +431,11 @@ final class AntigravityService: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.accountDefaultsKey)
     }
 
-    // MARK: - Autonomous Antigravity IDE Mission Runner (PC-Free!)
+    // MARK: - Unified Antigravity Runner (Normal Chatbot + Autonomous IDE Missions)
 
-    /// Runs a real autonomous coding mission inside `/home/astral` using the
-    /// user's connected Google Antigravity model (with selected thinking level
-    /// and Orchestrator support), producing structured Artifacts (Plan, Code
-    /// Diff, Terminal Output, Walkthrough) directly on the phone.
+    /// Executes either a normal conversational chatbot message (`workMode == .chat`)
+    /// or a full autonomous IDE coding mission (`workMode == .ideMission`) over
+    /// `/home/astral` and `SandboxShell`.
     func runMission(
         prompt: String,
         activeFilePath: String?,
@@ -635,49 +450,61 @@ final class AntigravityService: NSObject, ObservableObject {
         defer { isRunningMission = false }
 
         let descriptor = selectedDescriptor
+        let isChatbotMode = (workMode == .chat)
         let mission = AntigravityMission(
             prompt: trimmed,
             modelName: descriptor.name,
             thinkingLevel: thinkingLevel,
-            status: .planning)
+            status: isChatbotMode ? .coding : .planning)
         missions.insert(mission, at: 0)
         persistMissions()
-
-        // Gather live workspace context from /home/astral
-        let wsFiles = WorkspaceStore.shared.list().prefix(30).map(\.relativePath)
-        var contextBlock = "WORKSPACE FILES (/home/astral):\n" + (wsFiles.isEmpty ? "(empty)" : wsFiles.joined(separator: "\n"))
-        if let path = activeFilePath, !path.isEmpty {
-            contextBlock += "\n\nCURRENTLY OPEN FILE: \(path)\n```\n\(String((activeFileContent ?? "").prefix(4000)))\n```"
-        }
-
-        let orchestratorNote = descriptor.isOrchestrator
-            ? "ORCHESTRATOR MODE ACTIVE: First produce a crisp architectural plan, then generate complete production-ready implementation code."
-            : ""
-
-        let systemPrompt = """
-        You are Google Antigravity IDE Agent running natively inside Astral AI on iOS (PC-Free Ubuntu Base 24.04 ARM64 workstation at /home/astral).
-        Active Model: \(descriptor.name) · Thinking Effort: \(thinkingLevel.rawValue) · Plan: \(currentTier.displayName).
-        \(orchestratorNote)
-
-        When writing or modifying code files in the workspace, wrap each file using this exact block format so the IDE applies it automatically:
-        <<<FILE: relative/path/to/file.ext>>>
-        ...complete file contents...
-        <<<END_FILE>>>
-
-        If you want to run a verification command in the integrated Ubuntu terminal, include:
-        <<<CMD: command to run>>>
-
-        Respond in the user's language (Arabic request -> Arabic explanation & walkthrough, English -> English). Always include a short Implementation Plan and Walkthrough.
-        """
-
-        let messages = [
-            ChatMessage.system(systemPrompt),
-            ChatMessage.user("\(contextBlock)\n\nMISSION GOAL:\n\(trimmed)"),
-        ]
 
         // Ensure the Antigravity provider is active when signed in
         if let syncedID = account?.syncedProviderID, providerStore.activeProviderID != syncedID {
             providerStore.setActive(syncedID)
+        }
+
+        let messages: [ChatMessage]
+        if isChatbotMode {
+            let chatSystem = """
+            You are Astral AI powered by Google Antigravity (\(descriptor.name)).
+            Answer naturally, clearly, and helpfully as a conversational AI assistant in the user's language (Arabic -> Arabic, English -> English).
+            Only write code if the user asks for it. Keep answers clean and well-structured.
+            """
+            messages = [
+                ChatMessage.system(chatSystem),
+                ChatMessage.user(trimmed),
+            ]
+        } else {
+            let wsFiles = WorkspaceStore.shared.list().prefix(30).map(\.relativePath)
+            var contextBlock = "WORKSPACE FILES (/home/astral):\n" + (wsFiles.isEmpty ? "(empty)" : wsFiles.joined(separator: "\n"))
+            if let path = activeFilePath, !path.isEmpty {
+                contextBlock += "\n\nCURRENTLY OPEN FILE: \(path)\n```\n\(String((activeFileContent ?? "").prefix(4000)))\n```"
+            }
+
+            let orchestratorNote = descriptor.isOrchestrator
+                ? "ORCHESTRATOR MODE ACTIVE: First produce a crisp architectural plan, then generate complete production-ready implementation code."
+                : ""
+
+            let ideSystem = """
+            You are Google Antigravity IDE Agent running natively inside Astral AI on iOS (PC-Free Ubuntu Base 24.04 ARM64 workstation at /home/astral).
+            Active Model: \(descriptor.name) · Thinking Effort: \(thinkingLevel.rawValue) · Plan: \(currentTier.displayName).
+            \(orchestratorNote)
+
+            When writing or modifying code files in the workspace, wrap each file using this exact block format so the IDE applies it automatically:
+            <<<FILE: relative/path/to/file.ext>>>
+            ...complete file contents...
+            <<<END_FILE>>>
+
+            If you want to run a verification command in the integrated Ubuntu terminal, include:
+            <<<CMD: command to run>>>
+
+            Respond in the user's language (Arabic request -> Arabic explanation & walkthrough, English -> English). Always include a short Implementation Plan and Walkthrough.
+            """
+            messages = [
+                ChatMessage.system(ideSystem),
+                ChatMessage.user("\(contextBlock)\n\nMISSION GOAL:\n\(trimmed)"),
+            ]
         }
 
         do {
@@ -687,52 +514,53 @@ final class AntigravityService: NSObject, ObservableObject {
             var generatedArtifacts: [AntigravityArtifact] = []
             var touched: [String] = []
 
-            // 1. Parse and write <<<FILE: ...>>> blocks directly to /home/astral
-            let fileBlocks = Self.extractFileBlocks(from: reply)
-            for block in fileBlocks {
-                try? WorkspaceStore.shared.write(path: block.path, content: block.content)
-                touched.append(block.path)
-                generatedArtifacts.append(
-                    AntigravityArtifact(
-                        kind: .codeDiff,
-                        title: block.path,
-                        filePath: block.path,
-                        content: block.content))
-            }
-
-            // 2. Execute any <<<CMD: ...>>> verification commands in SandboxShell
-            let commands = Self.extractCommands(from: reply)
-            if !commands.isEmpty {
-                updateMission(mission.id) { $0.status = .verifying }
-                var termOutputs: [String] = []
-                for cmd in commands.prefix(4) {
-                    let result = await SandboxShell.shared.run(cmd)
-                    termOutputs.append("$ \(cmd)\n\(result.stdout)")
+            if !isChatbotMode {
+                let fileBlocks = Self.extractFileBlocks(from: reply)
+                for block in fileBlocks {
+                    try? WorkspaceStore.shared.write(path: block.path, content: block.content)
+                    touched.append(block.path)
+                    generatedArtifacts.append(
+                        AntigravityArtifact(
+                            kind: .codeDiff,
+                            title: block.path,
+                            filePath: block.path,
+                            content: block.content))
                 }
-                generatedArtifacts.append(
-                    AntigravityArtifact(
-                        kind: .terminal,
-                        title: "Ubuntu Terminal Verification",
-                        content: termOutputs.joined(separator: "\n\n")))
+
+                let commands = Self.extractCommands(from: reply)
+                if !commands.isEmpty {
+                    updateMission(mission.id) { $0.status = .verifying }
+                    var termOutputs: [String] = []
+                    for cmd in commands.prefix(4) {
+                        let result = await SandboxShell.shared.run(cmd)
+                        termOutputs.append("$ \(cmd)\n\(result.stdout)")
+                    }
+                    generatedArtifacts.append(
+                        AntigravityArtifact(
+                            kind: .terminal,
+                            title: "Ubuntu Terminal Verification",
+                            content: termOutputs.joined(separator: "\n\n")))
+                }
             }
 
-            // 3. Clean walkthrough text
-            let walkthroughText = Self.stripDirectives(from: reply)
+            let cleanText = isChatbotMode ? reply.trimmingCharacters(in: .whitespacesAndNewlines) : Self.stripDirectives(from: reply)
             generatedArtifacts.insert(
                 AntigravityArtifact(
                     kind: .walkthrough,
-                    title: LocalizationManager.shared.effectiveCode == "ar"
-                        ? "ملخص التنفيذ (Walkthrough)"
-                        : "Implementation Walkthrough",
-                    content: walkthroughText),
+                    title: isChatbotMode
+                        ? (LocalizationManager.shared.effectiveCode == "ar" ? "الرد" : "Response")
+                        : (LocalizationManager.shared.effectiveCode == "ar" ? "ملخص التنفيذ" : "Implementation Walkthrough"),
+                    content: cleanText),
                 at: 0)
 
-            WorkspaceStore.shared.refresh()
-            NotificationCenter.default.post(name: .sandboxDidChange, object: nil)
+            if !touched.isEmpty {
+                WorkspaceStore.shared.refresh()
+                NotificationCenter.default.post(name: .sandboxDidChange, object: nil)
+            }
 
             updateMission(mission.id) { m in
                 m.status = .completed
-                m.summary = String(walkthroughText.prefix(240))
+                m.summary = String(cleanText.prefix(240))
                 m.artifacts = generatedArtifacts
                 m.touchedFiles = touched
             }
@@ -753,19 +581,20 @@ final class AntigravityService: NSObject, ObservableObject {
     // MARK: - Provider Synchronization
 
     /// Creates or updates the dedicated "Google Antigravity" provider inside
-    /// `ProviderStore` so all unlocked Google models work in both Antigravity
-    /// IDE and the main Astral AI Chat.
+    /// `ProviderStore` so all unlocked Google models work seamlessly in both
+    /// Antigravity IDE and the Main Astral AI Chat (Chat & Agent modes).
     @discardableResult
     private func syncProvider(
         in store: ProviderStore,
         credential: String,
         modelID: String,
+        discovered: [String],
         tier: AntigravityPlanTier,
         existingID: UUID?
     ) -> UUID {
         let providerName = "Google Antigravity (\(tier.displayName))"
-        let plannerModel = tier >= .pro ? "gemini-4-neon" : modelID
-        let subAgentModel = "gemini-4-hydrogen"
+        let plannerModel = discovered.first(where: { $0.contains("2.5-pro") || $0.contains("pro") }) ?? modelID
+        let subAgentModel = discovered.first(where: { $0.contains("2.5-flash") || $0.contains("flash") }) ?? modelID
 
         if let existingID, var existing = store.providers.first(where: { $0.id == existingID }) {
             existing.name = providerName
@@ -798,8 +627,6 @@ final class AntigravityService: NSObject, ObservableObject {
 
     // MARK: - Live Google Model Discovery & Plan Detection
 
-    /// Queries Google's live Gemini API `/v1beta/models` endpoint to discover
-    /// all models accessible by the user's Google account or API key.
     private func discoverGoogleModels(apiKey: String, isBearerToken: Bool) async -> [String] {
         var urlString = Self.geminiModelsEndpoint
         if !isBearerToken {
@@ -829,7 +656,6 @@ final class AntigravityService: NSObject, ObservableObject {
         }
     }
 
-    /// Infers the user's Google AI / Antigravity plan tier from discovered models.
     func inferPlanTier(from discovered: [String]) -> AntigravityPlanTier {
         let lower = discovered.map { $0.lowercased() }
         if lower.contains(where: { $0.contains("argon") || $0.contains("carbon") || $0.contains("ultra") }) {
@@ -851,20 +677,46 @@ final class AntigravityService: NSObject, ObservableObject {
     }
 
     private func resolveAPIModelID(for descriptor: AntigravityModelDescriptor, discovered: [String]) -> String {
-        if discovered.isEmpty || discovered.contains(descriptor.apiModelID) {
+        if discovered.contains(descriptor.apiModelID) {
             return descriptor.apiModelID
         }
-        if descriptor.minimumTier >= .pro,
-           let proMatch = discovered.first(where: { $0.contains("2.5-pro") || $0.contains("pro") }) {
-            return proMatch
+        if !discovered.isEmpty {
+            if descriptor.minimumTier >= .pro,
+               let proMatch = discovered.first(where: { $0.contains("2.5-pro") || $0.contains("3.1-pro") || $0.contains("pro") }) {
+                return proMatch
+            }
+            if let flashMatch = discovered.first(where: { $0.contains("2.5-flash") || $0.contains("2.0-flash") || $0.contains("flash") }) {
+                return flashMatch
+            }
+            if let first = discovered.first {
+                return first
+            }
         }
-        if let flashMatch = discovered.first(where: { $0.contains("2.5-flash") || $0.contains("2.0-flash") || $0.contains("flash") }) {
-            return flashMatch
-        }
-        return discovered.first ?? descriptor.apiModelID
+        return "gemini-2.5-flash"
     }
 
-    // MARK: - OAuth Token Exchange & PKCE Helpers
+    // MARK: - ASWebAuthenticationSession & Token Exchange Helpers
+
+    private func performWebAuth(url: URL, scheme: String, ephemeral: Bool) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            let session = ASWebAuthenticationSession(
+                url: url,
+                callbackURLScheme: scheme
+            ) { callbackURL, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let callbackURL {
+                    continuation.resume(returning: callbackURL)
+                } else {
+                    continuation.resume(throwing: LLMError.badResponse("No callback URL returned"))
+                }
+            }
+            session.presentationContextProvider = self
+            session.prefersEphemeralWebBrowserSession = ephemeral
+            self.authSession = session
+            session.start()
+        }
+    }
 
     private func exchangeOAuthCode(
         code: String,
@@ -903,12 +755,6 @@ final class AntigravityService: NSObject, ObservableObject {
             }
             if let err = json["error"] as? String {
                 let desc = (json["error_description"] as? String) ?? err
-                if desc.lowercased().contains("client_secret") {
-                    let hint = LocalizationManager.shared.effectiveCode == "ar"
-                        ? "يتطلب Google OAuth إدخال Client Secret في إعدادات OAuth المتقدمة، أو استخدم مفتاح Google AI Studio بالأسفل للاتصال الفوري."
-                        : "Google OAuth token exchange requires a Client Secret in Advanced OAuth settings, or use a Google AI Studio API Key below for instant connection."
-                    throw LLMError.badResponse("\(desc) — \(hint)")
-                }
                 throw LLMError.badResponse("Google OAuth (\(err)): \(desc)")
             }
         }
@@ -1039,6 +885,19 @@ final class AntigravityService: NSObject, ObservableObject {
         let capped = Array(missions.prefix(30))
         if let data = try? JSONEncoder().encode(capped) {
             UserDefaults.standard.set(data, forKey: Self.missionsDefaultsKey)
+        }
+    }
+}
+
+// MARK: - ASWebAuthenticationPresentationContextProviding
+
+extension AntigravityService: ASWebAuthenticationPresentationContextProviding {
+    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+                .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
         }
     }
 }

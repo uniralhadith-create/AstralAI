@@ -37,8 +37,8 @@ targets:
       path: AstralAI/Resources/Info.plist
       properties:
         CFBundleDisplayName: Astral AI
-        CFBundleShortVersionString: "8.5.0"
-        CFBundleVersion: "18"
+        CFBundleShortVersionString: "8.5.1"
+        CFBundleVersion: "19"
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:

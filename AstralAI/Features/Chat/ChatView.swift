@@ -24,6 +24,11 @@ struct ChatView: View {
     @State private var cachedModels: [String] = []
     @State private var modelsFailed = false
 
+    /// 3-mode main workspace switcher: "chat" | "agent" | "ide"
+    @AppStorage("astral.chatMode") private var chatModeRaw: String = "chat"
+    @AppStorage("astral.agentMode") private var agentMode: Bool = false
+    @Namespace private var modeSwitchThumb
+
     // MARK: Suggestions
 
     private struct Suggestion: Identifiable {
@@ -65,7 +70,15 @@ struct ChatView: View {
             VStack(spacing: 0) {
                 headerView
 
-                if let session = env.sessionStore.activeSession,
+                mainModeSwitcherBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .padding(.bottom, 4)
+
+                if chatModeRaw == "ide" {
+                    AntigravityIDEView(embeddedInChat: true)
+                        .transition(.opacity)
+                } else if let session = env.sessionStore.activeSession,
                    session.isBusy || !session.messages.isEmpty || !session.streamingText.isEmpty {
                     conversationView(for: session)
                 } else {
@@ -77,10 +90,97 @@ struct ChatView: View {
         }
         .onAppear {
             observation.bind(env.sessionStore)
+            if chatModeRaw == "chat" && agentMode {
+                chatModeRaw = "agent"
+            }
+        }
+        .onChange(of: chatModeRaw) { _, newValue in
+            if newValue == "agent" {
+                agentMode = true
+            } else if newValue == "chat" {
+                agentMode = false
+            }
+        }
+        .onChange(of: agentMode) { _, isAgent in
+            if chatModeRaw != "ide" {
+                chatModeRaw = isAgent ? "agent" : "chat"
+            }
         }
         .task(id: providerStore.activeProviderID) {
             await refreshModels()
         }
+    }
+
+
+    // MARK: 3-Mode Main Workspace Switcher (Chat · Agent · IDE)
+
+    private var mainModeSwitcherBar: some View {
+        HStack(spacing: 4) {
+            mainModeSegment(
+                id: "chat",
+                icon: AstralIcons.chat,
+                label: L("chat.composer.chatMode", "Chat"),
+                accent: AstralTheme.textPrimary,
+                showDot: false)
+            mainModeSegment(
+                id: "agent",
+                icon: AstralIcons.sparkles,
+                label: L("chat.composer.agentMode", "Chat"),
+                accent: AstralTheme.accent,
+                showDot: false)
+            mainModeSegment(
+                id: "ide",
+                icon: AstralIcons.fileCode,
+                label: L("chat.composer.ideMode", "Chat"),
+                accent: AstralTheme.orbGreen,
+                showDot: antigravity.isSignedIn)
+        }
+        .padding(4)
+        .liquidGlass(in: Capsule(), tint: AstralTheme.actionFill.opacity(0.05))
+    }
+
+    private func mainModeSegment(
+        id: String,
+        icon: String,
+        label: String,
+        accent: Color,
+        showDot: Bool
+    ) -> some View {
+        let active = chatModeRaw == id
+        return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                chatModeRaw = id
+            }
+        } label: {
+            HStack(spacing: 5) {
+                AIcon(
+                    icon,
+                    size: 12,
+                    strokeWidth: 2.2,
+                    color: active ? AstralTheme.actionForeground : AstralTheme.textSecondary)
+                Text(label)
+                    .font(AstralTheme.headline(12))
+                    .foregroundStyle(active ? AstralTheme.actionForeground : AstralTheme.textSecondary)
+                    .lineLimit(1)
+                if showDot {
+                    Circle()
+                        .fill(active ? AstralTheme.actionForeground : accent)
+                        .frame(width: 5.5, height: 5.5)
+                }
+            }
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity)
+            .background {
+                if active {
+                    Capsule()
+                        .fill(id == "ide" ? AstralTheme.orbGreen : AstralTheme.actionFill)
+                        .matchedGeometryEffect(id: "main-chat-mode-thumb", in: modeSwitchThumb)
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Header
