@@ -257,6 +257,10 @@ private final class V470StubLLM: LLMProviding {
     ) async throws -> T {
         throw LLMError.badResponse("stub")
     }
+
+    func listModels() async throws -> [ModelInfo] { [] }
+
+    func modelID(for role: ModelRole) -> String? { nil }
 }
 
 @MainActor
