@@ -33,7 +33,7 @@ struct AgentLiveActivityWidget: Widget {
             let progress = WidgetPalette.clamped(context.state.progress)
             let accent = accentColor(for: context.state.status)
 
-            DynamicIsland {
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 8) {
                         ZStack {
