@@ -128,24 +128,24 @@ def main() -> int:
 
     # 3. Release invariants for V8.0.0
     project = (ROOT / "project.yml").read_text(encoding="utf-8")
-    if project.count("8.5.0") != 4:
-        failures.append(f"project.yml: expected 4 x 8.5.0, found {project.count('8.0.0')}")
-    target_build = 'CURRENT_PROJECT_VERSION: "19"'
+    if project.count("9.0.0") != 4:
+        failures.append(f"project.yml: expected 4 x 9.0.0, found {project.count('9.0.0')}")
+    target_build = 'CURRENT_PROJECT_VERSION: "20"'
     if project.count(target_build) != 3:
-        failures.append(f"project.yml: expected 3 x CURRENT_PROJECT_VERSION 18, found {project.count(target_build)}")
+        failures.append(f"project.yml: expected 3 x CURRENT_PROJECT_VERSION 20, found {project.count(target_build)}")
     # CRITICAL: Info.plist CFBundleVersion (device-displayed build) must match
     # CURRENT_PROJECT_VERSION — xcodegen writes info.properties straight into
     # Info.plist and iOS shows THAT number, not the build setting (V5 build-13
     # regression shipped an IPA reporting build 12 because only one of the two
     # was bumped).
-    info_build = 'CFBundleVersion: "18"'
+    info_build = 'CFBundleVersion: "20"'
     if info_build not in project:
-        failures.append("project.yml: info.properties CFBundleVersion != 18 (device shows THIS build number — must match CURRENT_PROJECT_VERSION)")
+        failures.append("project.yml: info.properties CFBundleVersion != 20 (device shows THIS build number — must match CURRENT_PROJECT_VERSION)")
 
     for lang in ["en", "ar"]:
         badge = (ROOT / f"AstralAI/Resources/{lang}.lproj/Shared.strings").read_text(encoding="utf-8")
-        if "V8.5.0" not in badge:
-            failures.append(f"versionBadge not updated to V8.0.0 ({lang})")
+        if "V9.0.0" not in badge:
+            failures.append(f"versionBadge not updated to V9.0.0 ({lang})")
 
     shell = (ROOT / "AstralAI/AgentCore/Sandbox/SandboxShell.swift").read_text(encoding="utf-8")
     if "astra-os 8.0.0" not in shell:
@@ -178,9 +178,6 @@ def main() -> int:
     if "AstralComputerIcon" not in terminal or "astra-os 5.0.0" not in terminal:
         failures.append("TerminalView: missing AstralComputerIcon or astra-os 5.0.0 compat banner")
 
-    ag_view = (ROOT / "AstralAI/Features/Antigravity/AntigravityIDEView.swift").read_text(encoding="utf-8")
-    if "struct AntigravityIDEView" not in ag_view:
-        failures.append("AntigravityIDEView: missing standalone IDE view")
 
     if failures:
         print("V8.0.0 SANITY: FAIL")

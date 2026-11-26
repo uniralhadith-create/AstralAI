@@ -81,28 +81,4 @@ final class V500Tests: XCTestCase {
         XCTAssertEqual(res.exitCode, 0)
         XCTAssertTrue(res.stdout.contains("/usr/bin/htop"))
     }
-
-    // MARK: - V8.5.0 Google Antigravity IDE Plan & Model Tests
-
-    func testAntigravityPlanTierModelUnlocking() {
-        let freeModels = AntigravityModelCatalog.models(for: .free)
-        XCTAssertTrue(freeModels.contains(where: { $0.id == "gemini-4-hydrogen" }))
-        XCTAssertFalse(freeModels.contains(where: { $0.id == "gemini-4-neon" }))
-
-        let proModels = AntigravityModelCatalog.models(for: .pro)
-        XCTAssertTrue(proModels.contains(where: { $0.id == "gemini-4-neon" }))
-        XCTAssertTrue(proModels.contains(where: { $0.id == "orchestrator-neon" }))
-        XCTAssertFalse(proModels.contains(where: { $0.id == "gemini-4-argon" }))
-
-        let ultraModels = AntigravityModelCatalog.models(for: .ultra)
-        XCTAssertTrue(ultraModels.contains(where: { $0.id == "gemini-4-argon" }))
-        XCTAssertTrue(ultraModels.contains(where: { $0.id == "gemini-4-carbon" }))
-    }
-
-    func testAntigravityPlanInferenceFromDiscoveredModels() {
-        let service = AntigravityService.shared
-        XCTAssertEqual(service.inferPlanTier(from: ["gemini-4-hydrogen", "gemini-3.8-flash"]), .free)
-        XCTAssertEqual(service.inferPlanTier(from: ["gemini-4-neon", "gemini-4-hydrogen"]), .pro)
-        XCTAssertEqual(service.inferPlanTier(from: ["gemini-4-argon", "gemini-4-carbon"]), .ultra)
-    }
 }

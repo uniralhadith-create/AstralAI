@@ -114,28 +114,45 @@ final class SendVideoTool: AgentTool {
                 content: "Video delivered to the user in chat and saved in workspace at \(existing.workspacePath) (\(existing.fileName)).")
         }
 
-        // 2. Download from URL -> Save to Workspace -> Deliver to Chat
+        // 2. Download REAL video from URL (direct media URL or Cobalt Video Downloader API)
         if !rawURL.isEmpty {
             var urlString = rawURL
             if !urlString.hasPrefix("http://") && !urlString.hasPrefix("https://") {
                 urlString = "https://" + urlString
             }
-            guard let targetURL = URL(string: urlString) else {
+            guard let initialURL = URL(string: urlString) else {
                 return ToolResult(content: "Error: invalid video URL '\(rawURL)'.", isError: true)
             }
             do {
-                var req = URLRequest(url: targetURL)
+                let resolvedURL = try await Self.resolveDownloadableVideoURL(from: initialURL)
+                var req = URLRequest(url: resolvedURL)
                 req.setValue(
                     "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
                     forHTTPHeaderField: "User-Agent")
-                req.timeoutInterval = 45
+                req.timeoutInterval = 60
                 let (data, response) = try await URLSession.shared.data(for: req)
-                if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
-                    return ToolResult(content: "Error: HTTP \(http.statusCode) downloading video from \(rawURL).", isError: true)
+                if let http = response as? HTTPURLResponse {
+                    if http.statusCode >= 400 {
+                        return ToolResult(content: "Error: HTTP \(http.statusCode) downloading video from \(rawURL).", isError: true)
+                    }
+                    let mime = (http.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
+                    if mime.contains("text/html") || Self.looksLikeHTML(data) {
+                        return ToolResult(
+                            content: "Error: '\(rawURL)' returned an HTML webpage instead of a real video file. Do NOT synthesize a fake video. Tell the user to provide a direct .mp4/.mov link or configure a Video Downloader API (Cobalt) in Connectors & Plugins.",
+                            isError: true)
+                    }
                 }
-                let preferredName = !rawPath.isEmpty
+                guard Self.isValidVideoBinary(data) else {
+                    return ToolResult(
+                        content: "Error: downloaded data from '\(rawURL)' is not a valid MP4/MOV/WebM video file (\(data.count) bytes). Do NOT generate a fake explainer video; report this clearly to the user.",
+                        isError: true)
+                }
+                var preferredName = !rawPath.isEmpty
                     ? (rawPath as NSString).lastPathComponent
-                    : (targetURL.lastPathComponent.isEmpty ? "downloaded-video.mp4" : targetURL.lastPathComponent)
+                    : (resolvedURL.lastPathComponent.isEmpty ? "downloaded-video.mp4" : resolvedURL.lastPathComponent)
+                if !MediaStore.isVideoFileName(preferredName) {
+                    preferredName += ".mp4"
+                }
                 let folder = (!rawPath.isEmpty && rawPath.contains("/"))
                     ? (rawPath as NSString).deletingLastPathComponent
                     : "Videos"
@@ -149,13 +166,18 @@ final class SendVideoTool: AgentTool {
                 await CloudRouting.mirrorUpData(path: saved.workspacePath, data: data)
                 VideoDelivery.store(callID: context.callID, video: saved)
                 return ToolResult(
-                    content: "Downloaded video (\(data.count) bytes), saved to workspace at \(saved.workspacePath), and delivered it to the user in chat.")
+                    content: "Downloaded real video (\(data.count) bytes), saved to workspace at \(saved.workspacePath), and delivered it to the user in chat.")
             } catch {
-                return ToolResult(content: "Error downloading video: \(error.localizedDescription)", isError: true)
+                return ToolResult(content: "Error downloading video: \(error.localizedDescription). Do NOT generate a synthetic fallback video.", isError: true)
             }
         }
 
-        // 3. Synthesize a real H.264 .mp4 video on-device -> Save to Workspace -> Deliver to Chat
+        // 3. Only synthesize a video if the user explicitly asked to generate slides/images
+        guard !slides.isEmpty || !imagePaths.isEmpty || !title.isEmpty else {
+            return ToolResult(
+                content: "Error: provide a valid workspace 'path' or direct video 'url' to send a real video.",
+                isError: true)
+        }
         let outputPath = rawPath.isEmpty
             ? "Videos/astral-\(Int(Date().timeIntervalSince1970)).mp4"
             : rawPath
@@ -181,6 +203,72 @@ final class SendVideoTool: AgentTool {
         } catch {
             return ToolResult(content: "Error generating video: \(error.localizedDescription)", isError: true)
         }
+    }
+
+    static func looksLikeHTML(_ data: Data) -> Bool {
+        let prefix = String(data: data.prefix(256), encoding: .utf8)?.lowercased() ?? ""
+        return prefix.contains("<!doctype html") || prefix.contains("<html") || prefix.contains("<head>")
+    }
+
+    static func isValidVideoBinary(_ data: Data) -> Bool {
+        guard data.count > 1024, !looksLikeHTML(data) else { return false }
+        let bytes = [UInt8](data.prefix(16))
+        // MP4 / MOV / M4V (`ftyp` at offset 4)
+        if bytes.count >= 8 && bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70 {
+            return true
+        }
+        // WebM / MKV EBML header (1A 45 DF A3)
+        if bytes.count >= 4 && bytes[0] == 0x1A && bytes[1] == 0x45 && bytes[2] == 0xDF && bytes[3] == 0xA3 {
+            return true
+        }
+        // AVI RIFF header
+        if bytes.count >= 4 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 {
+            return true
+        }
+        // MPEG-TS sync byte
+        if bytes.count >= 1 && bytes[0] == 0x47 {
+            return true
+        }
+        return false
+    }
+
+    /// Resolves social platform URLs (YouTube/TikTok/Instagram/X) through the user's
+    /// configured Cobalt-compatible Video Downloader API if enabled in Connectors.
+    static func resolveDownloadableVideoURL(from url: URL) async throws -> URL {
+        let host = (url.host ?? "").lowercased()
+        let isPlatformURL = host.contains("youtube.com") || host.contains("youtu.be")
+            || host.contains("tiktok.com") || host.contains("instagram.com")
+            || host.contains("twitter.com") || host.contains("x.com")
+            || host.contains("facebook.com") || host.contains("fb.watch")
+        guard isPlatformURL else { return url }
+
+        let cobaltEndpoint = ConnectorStore.shared.secondaryValue(for: .cobaltVideo)
+        guard ConnectorStore.shared.isEnabled(.cobaltVideo),
+              !cobaltEndpoint.isEmpty,
+              let apiURL = URL(string: cobaltEndpoint) else {
+            return url
+        }
+        var req = URLRequest(url: apiURL)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 30
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let key = ConnectorStore.shared.token(for: .cobaltVideo)
+        if !key.isEmpty {
+            req.setValue("Api-Key \(key)", forHTTPHeaderField: "Authorization")
+        }
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "url": url.absoluteString,
+            "videoQuality": "720",
+        ])
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        if let http = resp as? HTTPURLResponse, (200...299).contains(http.statusCode),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let mediaStr = json["url"] as? String,
+           let mediaURL = URL(string: mediaStr) {
+            return mediaURL
+        }
+        return url
     }
 }
 

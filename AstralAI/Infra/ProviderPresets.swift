@@ -117,24 +117,6 @@ public enum ProviderPresets {
             models: ["meta-llama/Llama-3.3-70B-Instruct-Turbo"]),
 
         ProviderPreset(
-            id: "antigravity",
-            name: "Google Antigravity",
-            nameAr: "Google Antigravity IDE",
-            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-            models: [
-                "gemini-4-hydrogen",
-                "gemini-4-neon",
-                "gemini-4-carbon",
-                "gemini-4-argon",
-                "gemini-3.8-flash",
-                "gemini-3.1-pro",
-                "gemini-2.5-pro",
-                "gemini-2.5-flash",
-            ],
-            keyHint: "Sign in via the dedicated Google Antigravity IDE section to auto-sync your Google plan models",
-            keyHintAr: "سجّل الدخول من قسم Google Antigravity IDE المستقل للاتصال التلقائي بنماذج خطتك في جوجل"),
-
-        ProviderPreset(
             id: "gemini",
             name: "Google Gemini",
             nameAr: "Google Gemini",

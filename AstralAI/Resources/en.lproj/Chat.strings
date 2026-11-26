@@ -43,7 +43,6 @@
 "chat.attachments.count" = "%d photos attached";
 "chat.composer.agentMode" = "Agent";
 "chat.composer.chatMode" = "Chat";
-"chat.composer.ideMode" = "IDE";
 "chat.composer.agentMode.a11y" = "Agent mode";
 "chat.drawer.sections" = "WORKSPACE";
 "chat.thinking" = "Astral is thinking";

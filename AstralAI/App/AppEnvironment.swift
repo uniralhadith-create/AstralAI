@@ -39,13 +39,18 @@ final class AppEnvironment: ObservableObject {
     /// re-fired idempotently: once after the dismissal settles, with a
     /// second and third attempt as insurance. Setting the same item
     /// while its sheet is already up is a no-op, so repeats are free.
-    func presentSection(_ section: AppTab) {
-        for delay in [0.35, 0.8, 1.4] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, self.presentedSection != section else { return }
-                self.presentedSection = section
-            }
+    private var pendingPresentationWork: DispatchWorkItem?
+
+    func presentSection(_ section: AppTab, afterDismissingSheet: Bool = false) {
+        pendingPresentationWork?.cancel()
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        let delay: TimeInterval = afterDismissingSheet ? 0.32 : 0.05
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.presentedSection = section
         }
+        pendingPresentationWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private init() {
@@ -194,8 +199,8 @@ final class AppEnvironment: ObservableObject {
             presentedSection = nil
             resumeMostRecent()
             return true
-        case "antigravity":
-            presentedSection = .antigravity
+        case "connectors", "plugins", "mcp", "telegram":
+            presentSection(.connectors)
             return true
         case "chat":
             presentedSection = nil

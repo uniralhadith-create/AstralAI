@@ -743,12 +743,13 @@ private struct ThinkingDot: View {
 }
 
 
-// MARK: - V8.0 Collapsible Steps & Thinking Drawer ("عرض الخطوات والتفكير")
+// MARK: - V9.0 Collapsible Steps & Thinking Drawer ("عرض الخطوات والتفكير")
 
 struct TurnStepItem: Identifiable, Equatable {
     let id: String
     let toolName: String
     let detail: String
+    var isError: Bool = false
 }
 
 struct TurnThinkingGroup: Identifiable, Equatable {
@@ -757,12 +758,16 @@ struct TurnThinkingGroup: Identifiable, Equatable {
     var steps: [TurnStepItem]
 }
 
-/// A compact, expandable Liquid Glass drawer that groups all of the agent's
-/// internal thinking and tool/command executions for a turn so the main chat
-/// timeline stays completely clean.
+/// A refined, collapsible Liquid Glass card that neatly groups the agent's
+/// internal reasoning and executed tool steps so the main chat bubble stays
+/// 100% clean and readable.
 struct ThinkingStepsDrawer: View {
     let group: TurnThinkingGroup
     @State private var expanded = false
+
+    private var isArabic: Bool {
+        LocalizationManager.shared.effectiveCode == "ar"
+    }
 
     private var totalItemsCount: Int {
         max(1, group.steps.count + group.thoughts.count)
@@ -776,23 +781,28 @@ struct ThinkingStepsDrawer: View {
         case "browser_click", "browser_type", "browser_scroll", "browser_screenshot": return AstralIcons.compass
         case "file_write", "file_read", "file_list", "project_create": return AstralIcons.fileCode
         case "send_video": return AstralIcons.play
+        case "github_api", "telegram_bot", "mcp_call", "plugin_call": return AstralIcons.plug
         default: return AstralIcons.sparkles
         }
     }
 
     private func labelForTool(_ name: String) -> String {
         switch name {
-        case "exec": return "Linux Shell (exec)"
-        case "web_search": return "Web Search"
-        case "web_fetch": return "Read Web Page"
-        case "browser_open": return "Open Browser"
-        case "browser_screenshot": return "Browser Screenshot"
+        case "exec": return isArabic ? "طرفية لينكس (exec)" : "Linux Shell (exec)"
+        case "web_search": return isArabic ? "بحث الويب" : "Web Search"
+        case "web_fetch": return isArabic ? "قراءة صفحة ويب" : "Read Web Page"
+        case "browser_open": return isArabic ? "فتح المتصفح" : "Open Browser"
+        case "browser_screenshot": return isArabic ? "لقطة شاشة للمتصفح" : "Browser Screenshot"
         case "run_python": return "Python 3.12"
         case "run_javascript": return "Node.js"
-        case "file_write": return "Write File"
-        case "file_read": return "Read File"
-        case "send_video": return "Video Engine"
-        case "update_tasks": return "Update Task Plan"
+        case "file_write": return isArabic ? "كتابة ملف" : "Write File"
+        case "file_read": return isArabic ? "قراءة ملف" : "Read File"
+        case "send_video": return isArabic ? "محرك الفيديو" : "Video Engine"
+        case "update_tasks": return isArabic ? "تحديث خطة المهام" : "Update Task Plan"
+        case "github_api": return "GitHub"
+        case "telegram_bot": return "Telegram Bot"
+        case "mcp_call": return "MCP Server"
+        case "plugin_call": return isArabic ? "إضافة / موصّل" : "Plugin Connector"
         default: return name
         }
     }
@@ -800,48 +810,56 @@ struct ThinkingStepsDrawer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.84)) {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
                     expanded.toggle()
                 }
             } label: {
-                HStack(spacing: 9) {
+                HStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(AstralTheme.orbGreen.opacity(0.15))
-                            .frame(width: 24, height: 24)
+                            .fill(AstralTheme.orbGreen.opacity(0.16))
+                            .frame(width: 26, height: 26)
                         AIcon(
                             AstralIcons.sparkles,
-                            size: 12.5,
+                            size: 13,
                             strokeWidth: 2.2,
                             color: AstralTheme.orbGreen)
                     }
 
-                    Text(expanded
-                         ? L("chat.stepsThinking.hide", "Chat")
-                         : L("chat.stepsThinking.title", "Chat"))
-                        .font(AstralTheme.headline(12.5))
-                        .foregroundStyle(AstralTheme.textPrimary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(expanded
+                             ? L("chat.stepsThinking.hide", "Chat")
+                             : L("chat.stepsThinking.title", "Chat"))
+                            .font(AstralTheme.headline(12.5))
+                            .foregroundStyle(AstralTheme.textPrimary)
+                        if !expanded, let lastStep = group.steps.last {
+                            Text(labelForTool(lastStep.toolName))
+                                .font(AstralTheme.mono(10))
+                                .foregroundStyle(AstralTheme.textSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 6)
 
                     Text(String(format: L("chat.stepsThinking.stepsCount", "Chat"), totalItemsCount))
                         .font(AstralTheme.mono(10).weight(.semibold))
                         .foregroundStyle(AstralTheme.orbGreen)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2.5)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(
                             Capsule(style: .continuous)
                                 .fill(AstralTheme.orbGreen.opacity(0.14)))
 
-                    Spacer(minLength: 4)
-
                     AIcon(
                         AstralIcons.chevronDown,
-                        size: 12,
+                        size: 11.5,
                         strokeWidth: 2.3,
                         color: AstralTheme.textSecondary)
                         .rotationEffect(.degrees(expanded ? 180 : 0))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 10)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -850,71 +868,89 @@ struct ThinkingStepsDrawer: View {
                 Divider()
                     .overlay(AstralTheme.separator)
 
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     if !group.thoughts.isEmpty {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(L("chat.stepsThinking.thinkingHeader", "Chat"))
-                                .font(AstralTheme.mono(10.5).weight(.bold))
-                                .foregroundStyle(AstralTheme.orbGreen)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(AstralTheme.accent)
+                                    .frame(width: 6, height: 6)
+                                Text(L("chat.stepsThinking.thinkingHeader", "Chat"))
+                                    .font(AstralTheme.mono(10.5).weight(.bold))
+                                    .foregroundStyle(AstralTheme.accent)
+                            }
 
                             ForEach(Array(group.thoughts.enumerated()), id: \.offset) { _, thought in
                                 Text(thought)
                                     .font(AstralTheme.body(12.5))
                                     .foregroundStyle(AstralTheme.textSecondary)
-                                    .lineSpacing(2)
-                                    .padding(9)
+                                    .lineSpacing(3)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(10)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(AstralTheme.actionFill.opacity(0.04)))
+                                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                            .fill(AstralTheme.actionFill.opacity(0.045)))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                            .stroke(AstralTheme.separator.opacity(0.6), lineWidth: 0.7))
                             }
                         }
                     }
 
                     if !group.steps.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(L("chat.stepsThinking.commandsHeader", "Chat"))
-                                .font(AstralTheme.mono(10.5).weight(.bold))
-                                .foregroundStyle(AstralTheme.orbGreen)
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(AstralTheme.orbGreen)
+                                    .frame(width: 6, height: 6)
+                                Text(L("chat.stepsThinking.commandsHeader", "Chat"))
+                                    .font(AstralTheme.mono(10.5).weight(.bold))
+                                    .foregroundStyle(AstralTheme.orbGreen)
+                            }
 
                             ForEach(group.steps) { step in
-                                HStack(alignment: .top, spacing: 8) {
+                                HStack(alignment: .top, spacing: 9) {
                                     AIcon(
                                         iconForTool(step.toolName),
                                         size: 12,
                                         strokeWidth: 2.1,
-                                        color: AstralTheme.orbGreen)
-                                        .frame(width: 20, height: 20)
+                                        color: step.isError ? AstralTheme.danger : AstralTheme.orbGreen)
+                                        .frame(width: 22, height: 22)
                                         .background(
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(AstralTheme.orbGreen.opacity(0.12)))
+                                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                                .fill((step.isError ? AstralTheme.danger : AstralTheme.orbGreen).opacity(0.14)))
 
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: 3) {
                                         Text(labelForTool(step.toolName))
-                                            .font(AstralTheme.headline(11.5))
+                                            .font(AstralTheme.headline(12))
                                             .foregroundStyle(AstralTheme.textPrimary)
                                         if !step.detail.isEmpty {
                                             Text(step.detail)
                                                 .font(AstralTheme.mono(10.5))
                                                 .foregroundStyle(AstralTheme.textSecondary)
-                                                .lineLimit(2)
+                                                .lineLimit(3)
+                                                .fixedSize(horizontal: false, vertical: true)
                                         }
                                     }
 
                                     Spacer(minLength: 4)
 
                                     AIcon(
-                                        AstralIcons.check,
+                                        step.isError ? AstralIcons.close : AstralIcons.check,
                                         size: 11,
                                         strokeWidth: 2.5,
-                                        color: AstralTheme.orbGreen)
-                                        .padding(.top, 3)
+                                        color: step.isError ? AstralTheme.danger : AstralTheme.orbGreen)
+                                        .padding(.top, 4)
                                 }
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                        .fill(AstralTheme.actionFill.opacity(0.035)))
+                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                        .fill(AstralTheme.actionFill.opacity(0.04)))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                        .stroke(AstralTheme.separator.opacity(0.55), lineWidth: 0.7))
                             }
                         }
                     }
@@ -923,6 +959,6 @@ struct ThinkingStepsDrawer: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous), interactive: true)
+        .liquidGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }

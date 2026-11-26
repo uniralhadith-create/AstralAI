@@ -54,6 +54,10 @@ final class ToolRegistry {
             CloudExecTool(),
             CloudPullTool(),
             CloudPushTool(),
+            GitHubConnectorTool(),
+            TelegramConnectorTool(),
+            MCPConnectorTool(),
+            UniversalPluginTool(),
         ]
 
         var byName: [String: AgentTool] = [:]
@@ -75,9 +79,18 @@ final class ToolRegistry {
     func specs() -> [ToolSpec] {
         let cloudAvailable = E2BComputer.shared.isConfigured
         let cloudTools: Set<String> = ["cloud_exec", "cloud_file_pull", "cloud_file_push"]
+        let connectors = ConnectorStore.shared
         return orderedNames.compactMap { name -> ToolSpec? in
             if cloudTools.contains(name), !cloudAvailable {
                 return nil
+            }
+            if name == "github_api", !connectors.isActive(.github) { return nil }
+            if name == "telegram_bot", !connectors.isActive(.telegram) { return nil }
+            if name == "mcp_call", !connectors.isActive(.mcp) { return nil }
+            if name == "plugin_call" {
+                let anyPlugin = [ConnectorKind.notion, .slack, .discord, .linear, .trello, .braveSearch, .tavily, .vercel, .supabase, .webhook]
+                    .contains { connectors.isActive($0) }
+                if !anyPlugin { return nil }
             }
             return tools[name]?.spec
         }

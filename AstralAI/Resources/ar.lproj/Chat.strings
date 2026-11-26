@@ -43,7 +43,6 @@
 "chat.attachments.count" = "%d صورة مرفقة";
 "chat.composer.agentMode" = "وكيل";
 "chat.composer.chatMode" = "محادثة";
-"chat.composer.ideMode" = "IDE";
 "chat.composer.agentMode.a11y" = "وضع الوكيل";
 "chat.drawer.sections" = "مساحة العمل";
 "chat.thinking" = "أسترال يفكر";

@@ -40,9 +40,9 @@ struct ComposerView: View {
 
     /// The action panel sheet.
     @State private var showingActionPanel = false
+    @State private var showingSkillsSheet = false
 
     @AppStorage("astral.agentMode") private var agentMode = false
-    @AppStorage("astral.chatMode") private var chatModeRaw: String = "chat"
 
     private let maxImages = 4
     private let maxFiles = 4
@@ -98,16 +98,33 @@ struct ComposerView: View {
                 },
                 onOpenSection: { section in
                     showingActionPanel = false
-                    env.presentSection(section)
+                    env.presentSection(section, afterDismissingSheet: true)
                 },
                 onOpenTerminal: {
                     showingActionPanel = false
-                    env.showTerminal = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        env.showTerminal = true
+                    }
                 })
                 .environmentObject(env)
                 .environmentObject(language)
                 .environment(\.layoutDirection, language.layoutDirection)
-                .presentationDetents([.height(440)])
+                .presentationDetents([.height(460)])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingSkillsSheet) {
+            ComposerSkillsQuickSheet(
+                onManageSkills: {
+                    showingSkillsSheet = false
+                    env.presentSection(.skills, afterDismissingSheet: true)
+                },
+                onOpenConnectors: {
+                    showingSkillsSheet = false
+                    env.presentSection(.connectors, afterDismissingSheet: true)
+                })
+                .environmentObject(language)
+                .environment(\.layoutDirection, language.layoutDirection)
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -128,7 +145,7 @@ struct ComposerView: View {
         .liquidGlass(
             in: RoundedRectangle(cornerRadius: 30, style: .continuous),
             tint: focused ? AstralTheme.actionFill.opacity(0.06) : .clear,
-            interactive: true)
+            interactive: false)
         .overlay(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .stroke(
@@ -336,15 +353,7 @@ struct ComposerView: View {
     private var agentModeChip: some View {
         Button {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            if chatModeRaw == "chat" {
-                chatModeRaw = "agent"
-                agentMode = true
-            } else if chatModeRaw == "agent" {
-                chatModeRaw = "ide"
-            } else {
-                chatModeRaw = "chat"
-                agentMode = false
-            }
+            agentMode.toggle()
         } label: {
             HStack(spacing: 5) {
                 ZStack {
@@ -390,31 +399,11 @@ struct ComposerView: View {
             : L("chat.composer.chatMode", "Chat")))
     }
 
-    @ViewBuilder
     private var skillsChip: some View {
         let enabled = skillStore.enabledSkills
-        Menu {
-            if enabled.isEmpty {
-                Text(L("skills.composer.none", "Skills"))
-            } else {
-                ForEach(enabled.prefix(8)) { skill in
-                    Button {
-                        skillStore.toggle(skill.id)
-                    } label: {
-                        Label(
-                            skill.displayName,
-                            systemImage: skill.isEnabled ? "checkmark.circle.fill" : "circle")
-                    }
-                }
-            }
-
-            Divider()
-
-            Button {
-                env.presentSection(.skills)
-            } label: {
-                Label(L("skills.manage", "Skills"), systemImage: "puzzlepiece.extension")
-            }
+        return Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showingSkillsSheet = true
         } label: {
             HStack(spacing: 5) {
                 AIcon(
@@ -436,9 +425,10 @@ struct ComposerView: View {
             .padding(.vertical, 8)
             .liquidCapsule(
                 tint: enabled.isEmpty ? .clear : AstralTheme.accent.opacity(0.12),
-                interactive: true)
+                interactive: false)
             .contentShape(Capsule())
         }
+        .buttonStyle(PressableIconButtonStyle())
         .accessibilityLabel(Text(L("skills.manage", "Skills")))
     }
 
@@ -920,5 +910,81 @@ private struct PressableIconButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
             .animation(.smooth(duration: 0.18), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Reliable Skills & Connectors Quick Sheet (Fixes iOS Menu Tap Swallowing)
+
+private struct ComposerSkillsQuickSheet: View {
+    var onManageSkills: () -> Void
+    var onOpenConnectors: () -> Void
+
+    @EnvironmentObject private var language: LocalizationManager
+    @ObservedObject private var skillStore = SkillStore.shared
+    @ObservedObject private var connectors = ConnectorStore.shared
+
+    private var isArabic: Bool { language.effectiveCode == "ar" }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section(isArabic ? "المهارات المثبّتة" : "Installed Skills") {
+                    if skillStore.installed.isEmpty {
+                        Text(L("skills.composer.none", "Skills"))
+                            .foregroundStyle(AstralTheme.textSecondary)
+                    } else {
+                        ForEach(skillStore.installed) { skill in
+                            Button {
+                                skillStore.toggle(skill.id)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: skill.icon)
+                                        .foregroundStyle(skill.isEnabled ? AstralTheme.orbGreen : AstralTheme.textSecondary)
+                                        .frame(width: 22)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(skill.displayName)
+                                            .font(AstralTheme.headline(14))
+                                            .foregroundStyle(AstralTheme.textPrimary)
+                                        if !skill.displaySummary.isEmpty {
+                                            Text(skill.displaySummary)
+                                                .font(AstralTheme.body(12))
+                                                .foregroundStyle(AstralTheme.textSecondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: skill.isEnabled ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(skill.isEnabled ? AstralTheme.orbGreen : AstralTheme.textSecondary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                Section {
+                    Button(action: onManageSkills) {
+                        Label(L("skills.manage", "Skills"), systemImage: "puzzlepiece.extension.fill")
+                            .font(AstralTheme.headline(14.5))
+                            .foregroundStyle(AstralTheme.accent)
+                    }
+
+                    Button(action: onOpenConnectors) {
+                        HStack {
+                            Label(L("tab.connectors", "Shared"), systemImage: "point.3.connected.trianglepath.dotted")
+                                .font(AstralTheme.headline(14.5))
+                                .foregroundStyle(AstralTheme.orbGreen)
+                            Spacer()
+                            Text("\(connectors.activeCount)")
+                                .font(AstralTheme.mono(12).weight(.bold))
+                                .foregroundStyle(AstralTheme.orbGreen)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(L("tab.skills", "Shared"))
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }

@@ -136,7 +136,7 @@ final class AgentSession: ObservableObject, Identifiable {
         + "run_python, run_javascript, and send_video. The user watches every command you run in the Astra Computer bar and live terminal "
         + "view — work there with complete mastery like an expert Claude Code / Manus engineer.\n\n"
         + "VIDEOS & MEDIA IN WORKSPACE: You can send, download, and generate real .mp4 videos and save them in the Workspace (under Videos/) using the send_video tool or the ffmpeg / yt-dlp shell commands! "
-        + "Whenever the user asks you to send a video, download a video, or create a video and save it in the workspace, call send_video (or run ffmpeg / yt-dlp in exec and then send_video) so the video is both saved in the Workspace (Videos/...) and delivered as an interactive video player card in the chat.\n\n"
+        + "When the user asks to DOWNLOAD a video from a URL, call send_video(url: ...) or yt-dlp. NEVER generate a fake programmatic/explainer video if a download fails; tell the user honestly if the URL is a webpage rather than a direct video file and suggest configuring the Video Downloader API connector. Also use connected plugins (github_api, telegram_bot, mcp_call, plugin_call) whenever relevant.\n\n"
         + "CLOUD LINUX — FULL ROOT: when the cloud_exec tool is available, the user connected a "
         + "REAL Ubuntu Linux cloud computer (E2B) and you hold ROOT on it: permission errors are "
         + "auto-escalated with sudo, so apt packages, system files, ffmpeg, git, compilation, real "
@@ -602,10 +602,15 @@ final class AgentSession: ObservableObject, Identifiable {
         var liveText = ""
         var concluded = false
         var sawFirstToken = false
+        var callRepeatCounts: [String: Int] = [:]
 
         do {
-            for round in 0..<60 {
+            for round in 0..<20 {
                 if Task.isCancelled { throw CancellationError() }
+
+                if round == 17 {
+                    working.append(ChatMessage.system("You are near the step limit. Stop calling tools and write a clear, accurate final response summarizing what was completed and any blockers."))
+                }
 
                 var accumulated = ""
                 var pendingCalls: [ToolCall] = []
@@ -613,7 +618,14 @@ final class AgentSession: ObservableObject, Identifiable {
                     switch event {
                     case .textDelta(let delta):
                         accumulated += delta
-                        streamingText = accumulated
+                        let looksLikeToolOrThink = accumulated.contains("ASTRAL_TOOL")
+                            || accumulated.contains("<tool_call>")
+                            || accumulated.contains("<|tool_call|>")
+                        if !looksLikeToolOrThink {
+                            streamingText = TextToolProtocol.cleanVisibleText(accumulated)
+                        } else {
+                            streamingText = ""
+                        }
                         if !sawFirstToken {
                             sawFirstToken = true
                             system?.updateLiveActivity(
@@ -669,6 +681,16 @@ final class AgentSession: ObservableObject, Identifiable {
                             progress: baseProgress)
                     }
 
+                    // Loop-breaker: detect repeated identical tool calls so the agent never derails
+                    var repeatedNotice: String?
+                    for call in pendingCalls {
+                        let sig = "\(call.name)|\(call.arguments)"
+                        callRepeatCounts[sig, default: 0] += 1
+                        if callRepeatCounts[sig, default: 0] >= 3 {
+                            repeatedNotice = "Loop detected: you called '\(call.name)' with identical arguments 3 times. Do NOT repeat this call. Either try a completely different approach or give the user a clear final answer now."
+                        }
+                    }
+
                     let results = await withTaskGroup(
                         of: (Int, ToolResult).self
                     ) { group in
@@ -703,6 +725,9 @@ final class AgentSession: ObservableObject, Identifiable {
                         working.append(toolMessage)
                         messages.append(toolMessage)
                         if Task.isCancelled { throw CancellationError() }
+                    }
+                    if let repeatedNotice {
+                        working.append(ChatMessage.system(repeatedNotice))
                     }
                     onPersist?()
                     continue

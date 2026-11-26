@@ -2469,11 +2469,16 @@ final class SandboxShell: ObservableObject {
                 "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
                 forHTTPHeaderField: "User-Agent")
             req.timeoutInterval = 45
+            let resolvedURL = try await SendVideoTool.resolveDownloadableVideoURL(from: url)
+            req.url = resolvedURL
             let (data, response) = try await URLSession.shared.data(for: req)
             if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
                 return .error("yt-dlp: HTTP \(http.statusCode) from \(rawURL)")
             }
-            let pref = outputName ?? (url.lastPathComponent.isEmpty ? "video.mp4" : url.lastPathComponent)
+            if !SendVideoTool.isValidVideoBinary(data) {
+                return .error("yt-dlp: '\(rawURL)' returned a webpage instead of a direct video file. Configure a Video Downloader API (Cobalt) in Connectors & Plugins or use a direct .mp4 URL. Do NOT synthesize a fake video.")
+            }
+            let pref = outputName ?? (resolvedURL.lastPathComponent.isEmpty ? "video.mp4" : resolvedURL.lastPathComponent)
             guard let saved = MediaStore.saveVideo(
                 data: data,
                 preferredName: (pref as NSString).lastPathComponent,

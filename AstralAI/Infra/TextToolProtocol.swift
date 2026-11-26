@@ -95,6 +95,7 @@ enum TextToolProtocol {
         let patterns = [
             "<think>([\\s\\S]*?)</think>",
             "<thinking>([\\s\\S]*?)</thinking>",
+            "<reasoning>([\\s\\S]*?)</reasoning>",
             "◁think▷([\\s\\S]*?)◁/think▷",
         ]
         for pattern in patterns {
@@ -138,8 +139,10 @@ enum TextToolProtocol {
         let closedPatterns = [
             "<think>[\\s\\S]*?</think>",
             "<thinking>[\\s\\S]*?</thinking>",
+            "<reasoning>[\\s\\S]*?</reasoning>",
             "◁think▷[\\s\\S]*?◁/think▷",
             "<tool_call>[\\s\\S]*?</tool_call>",
+            "<\\|tool_call\\|>[\\s\\S]*?<\\|/tool_call\\|>",
         ]
         for pattern in closedPatterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
@@ -149,7 +152,7 @@ enum TextToolProtocol {
         }
 
         // Strip unclosed trailing `<think>...` while streaming
-        for openTag in ["<think>", "<thinking>", "◁think▷", "<|tool_call|>", "<tool_call>"] {
+        for openTag in ["<think>", "<thinking>", "<reasoning>", "◁think▷", "<|tool_call|>", "<tool_call>"] {
             if let range = result.range(of: openTag, options: [.caseInsensitive]) {
                 result = String(result[..<range.lowerBound])
             }
@@ -162,8 +165,11 @@ enum TextToolProtocol {
                 || trimmed.hasPrefix("TOOL_CALL")
                 || trimmed.hasPrefix("TOOL_RESULT[")
                 || trimmed.hasPrefix("<|tool_call|>")
+                || trimmed.hasPrefix("STEP_COMPLETE:")
+                || trimmed.hasPrefix("STEP_BLOCKED:")
                 || trimmed.contains("ASTRAL_TOOL {")
-                || trimmed.contains("ASTRAL_TOOL:") {
+                || trimmed.contains("ASTRAL_TOOL:")
+                || (trimmed.hasPrefix("{") && trimmed.contains("\"name\"") && trimmed.contains("\"arguments\"")) {
                 return false
             }
             return true
